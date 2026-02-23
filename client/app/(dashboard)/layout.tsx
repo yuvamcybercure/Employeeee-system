@@ -2,6 +2,7 @@
 
 import { Sidebar } from "@/components/Sidebar";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function DashboardLayout({
     children,
@@ -12,11 +13,23 @@ export default function DashboardLayout({
 }) {
     return (
         <ProtectedRoute allowedRoles={allowedRoles}>
-            <div className="flex min-h-screen bg-slate-50/50">
+            <div className="flex min-h-screen bg-[#f8fafc]">
                 <Sidebar />
-                <main className="flex-1 md:ml-64 p-4 md:p-8 pt-20 md:pt-8 w-full max-w-(--breakpoint-2xl) mx-auto">
-                    {children}
-                </main>
+                <div className="flex-1 flex flex-col min-w-0 md:ml-64">
+                    <main className="flex-1 p-4 md:p-10 pt-20 md:pt-10">
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                initial={{ opacity: 0, y: 15 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -15 }}
+                                transition={{ duration: 0.4, ease: "easeOut" }}
+                                className="w-full max-w-[1600px] mx-auto"
+                            >
+                                {children}
+                            </motion.div>
+                        </AnimatePresence>
+                    </main>
+                </div>
             </div>
         </ProtectedRoute>
     );

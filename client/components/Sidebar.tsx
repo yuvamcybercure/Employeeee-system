@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 import {
     LayoutDashboard,
     MapPin,
@@ -20,7 +21,8 @@ import {
     Lock,
     Menu,
     X,
-    Settings
+    Settings,
+    Sparkles
 } from 'lucide-react';
 
 interface NavItem {
@@ -58,13 +60,11 @@ export function Sidebar() {
         return true;
     });
 
-    const baseHref = user?.role === 'superadmin' ? '/superadmin' : user?.role === 'admin' ? '/admin' : '/employee';
-
     return (
         <>
             {/* Mobile Toggle */}
             <button
-                className="fixed top-4 left-4 z-50 md:hidden p-2 bg-primary text-primary-foreground rounded-md shadow-lg"
+                className="fixed top-4 left-4 z-50 md:hidden p-3 bg-primary text-white rounded-2xl shadow-xl shadow-primary/20 backdrop-blur-lg flex items-center justify-center"
                 onClick={() => setIsOpen(!isOpen)}
             >
                 {isOpen ? <X size={20} /> : <Menu size={20} />}
@@ -72,23 +72,32 @@ export function Sidebar() {
 
             {/* Sidebar Overlay */}
             {isOpen && (
-                <div
-                    className="fixed inset-0 bg-black/50 z-40 md:hidden outline-none"
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden"
                     onClick={() => setIsOpen(false)}
                 />
             )}
 
             {/* Sidebar Content */}
             <aside className={cn(
-                "fixed left-0 top-0 h-full bg-card border-r w-64 z-40 transition-transform duration-300 md:translate-x-0 overflow-y-auto pb-20",
+                "fixed left-0 top-0 h-full bg-white border-r border-slate-100 w-64 z-40 transition-all duration-500 md:translate-x-0 flex flex-col shadow-2xl shadow-slate-200/50",
                 isOpen ? "translate-x-0" : "-translate-x-full"
             )}>
-                <div className="p-6 border-b flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">T</div>
-                    <span className="text-xl font-bold text-primary">TaskEase</span>
+                {/* Logo Section */}
+                <div className="p-8 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white shadow-lg shadow-primary/20">
+                        <Sparkles size={20} className="animate-pulse" />
+                    </div>
+                    <div>
+                        <span className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary tracking-tight">TaskEase</span>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Enterprise</p>
+                    </div>
                 </div>
 
-                <nav className="p-4 space-y-1">
+                {/* Navigation Items */}
+                <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto overflow-x-hidden pt-2">
                     {filteredItems.map((item) => {
                         const isActive = pathname.startsWith(item.href);
                         return (
@@ -97,50 +106,62 @@ export function Sidebar() {
                                 href={item.href}
                                 onClick={() => setIsOpen(false)}
                                 className={cn(
-                                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium relative",
+                                    "group flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 text-sm font-bold relative overflow-hidden",
                                     isActive
-                                        ? "bg-primary text-primary-foreground shadow-md"
-                                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                                        ? "text-white shadow-lg shadow-primary/25"
+                                        : "text-slate-500 hover:text-primary hover:bg-slate-50"
                                 )}
                             >
-                                <item.icon size={18} />
-                                <span className="flex-1">{item.title}</span>
-                                {item.badge && (
-                                    <span className={cn(
-                                        "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black",
-                                        isActive ? "bg-white text-primary" : "bg-primary text-white"
-                                    )}>
-                                        {item.badge}
-                                    </span>
+                                {isActive && (
+                                    <motion.div
+                                        layoutId="sidebar-active"
+                                        className="absolute inset-0 bg-gradient-to-r from-primary to-primary/90 z-0"
+                                        transition={{ type: "spring", bounce: 0.25, duration: 0.5 }}
+                                    />
                                 )}
+                                <div className="relative z-10 flex items-center gap-3 w-full">
+                                    <item.icon size={20} className={cn("transition-transform duration-300 group-hover:scale-110", isActive ? "text-white" : "text-slate-400 group-hover:text-primary")} />
+                                    <span className="flex-1">{item.title}</span>
+                                    {item.badge && (
+                                        <span className={cn(
+                                            "w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-black",
+                                            isActive ? "bg-white/20 text-white backdrop-blur-md" : "bg-primary text-white"
+                                        )}>
+                                            {item.badge}
+                                        </span>
+                                    )}
+                                </div>
                             </Link>
                         );
                     })}
                 </nav>
 
-                <div className="absolute bottom-0 left-0 w-full p-4 border-t bg-card">
-                    <div className="flex items-center gap-3 mb-4 px-3">
-                        <div className="w-9 h-9 rounded-full bg-secondary overflow-hidden">
-                            {user?.profilePhoto ? (
-                                <img src={user.profilePhoto} alt={user.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold">
-                                    {user?.name?.[0]}
-                                </div>
-                            )}
+                {/* User Profile Section */}
+                <div className="p-4 mt-auto">
+                    <div className="p-4 bg-slate-50 rounded-[2rem] border border-slate-100">
+                        <div className="flex items-center gap-3 mb-4 px-1">
+                            <div className="w-10 h-10 rounded-2xl bg-white p-1 shadow-sm overflow-hidden">
+                                {user?.profilePhoto ? (
+                                    <img src={user.profilePhoto} alt={user.name} className="w-full h-full object-cover rounded-xl" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-black uppercase">
+                                        {user?.name?.[0]}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black text-slate-800 truncate capitalize">{user?.name}</p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{user?.role}</p>
+                            </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold truncate capitalize">{user?.name}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
-                        </div>
+                        <button
+                            onClick={logout}
+                            className="flex items-center justify-center gap-2 w-full py-3 text-xs font-black uppercase tracking-widest text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+                        >
+                            <LogOut size={16} />
+                            Sign Out
+                        </button>
                     </div>
-                    <button
-                        onClick={logout}
-                        className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-destructive hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                        <LogOut size={18} />
-                        Logout
-                    </button>
                 </div>
             </aside>
         </>
