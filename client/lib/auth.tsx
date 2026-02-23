@@ -1,0 +1,94 @@
+"use client";
+
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import api from '@/lib/api';
+
+interface User {
+    _id: string;
+    name: string;
+    email: string;
+    role: 'superadmin' | 'admin' | 'employee';
+    employeeId: string;
+    plainPassword?: string;
+    department: string;
+    profilePhoto: string;
+    permissions: Record<string, boolean>;
+}
+
+interface AuthContextType {
+    user: User | null;
+    loading: boolean;
+    login: (userData: any) => void;
+    logout: () => void;
+    refreshUser: () => Promise<void>;
+    hasPermission: (perm: string) => boolean;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+    const [user, setUser] = useState<User | null>(null);
+    const [loading, setLoading] = useState(true);
+    const router = useRouter();
+    const pathname = usePathname();
+
+    useEffect(() => {
+        refreshUser();
+    }, []);
+
+    const refreshUser = async () => {
+        try {
+            const { data } = await api.get('/auth/me');
+            if (data.success) {
+                setUser({ ...data.user, permissions: data.permissions });
+            } else {
+                setUser(null);
+            }
+        } catch (err) {
+            setUser(null);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const login = (userData: any) => {
+        setUser({ ...userData.user, permissions: userData.permissions });
+        const redirectionMap = {
+            superadmin: '/dashboard',
+            admin: '/dashboard',
+            employee: '/dashboard',
+        };
+        router.push('/dashboard');
+    };
+
+    const logout = async () => {
+        try {
+            await api.post('/auth/logout');
+            setUser(null);
+            router.push('/login');
+        } catch (err) {
+            console.error('Logout failed');
+        }
+    };
+
+    const hasPermission = (perm: string) => {
+        if (!user) return false;
+        if (user.role === 'superadmin') return true;
+        return !!user.permissions[perm];
+    };
+
+    return (
+        <AuthContext.Provider value={{ user, loading, login, logout, refreshUser, hasPermission }}>
+            {children}
+        </AuthContext.Provider>
+    );
+}
+
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+}
