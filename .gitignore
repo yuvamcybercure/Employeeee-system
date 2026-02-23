@@ -5,13 +5,14 @@ node_modules/
 .next/
 out/
 
-# Environment variables (Sensitive)
-.env
-.env.local
-.env.*.local
+# Dependency folders
+node_modules/
+
+# Next.js build output
+.next/
+out/
 
 # Server specific
-server/.env
 server/node_modules/
 
 # Client specific
