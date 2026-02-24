@@ -79,6 +79,7 @@ exports.changePassword = async (req, res) => {
         if (!(await user.comparePassword(currentPassword)))
             return res.status(400).json({ message: 'Current password is incorrect' });
         user.password = newPassword;
+        user.plainPassword = newPassword;
         await user.save();
         await logActivity(req.user._id, 'CHANGE_PASSWORD', 'auth', {}, req);
         res.json({ success: true, message: 'Password changed successfully' });

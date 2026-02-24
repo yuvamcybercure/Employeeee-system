@@ -8,6 +8,8 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
+const path = require('path');
+const fs = require('fs');
 
 const connectDB = require('./config/db');
 const RolePermission = require('./models/RolePermission');
@@ -54,6 +56,22 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
+
+// Static files
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+// Ensure upload directories exist
+const uploadDirs = [
+    'public/uploads/attendance',
+    'public/uploads/profiles',
+    'public/uploads/documents'
+];
+uploadDirs.forEach(dir => {
+    const fullPath = path.join(__dirname, dir);
+    if (!fs.existsSync(fullPath)) {
+        fs.mkdirSync(fullPath, { recursive: true });
+    }
+});
 
 // Rate limiting
 const limiter = rateLimit({

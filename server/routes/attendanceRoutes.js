@@ -11,7 +11,7 @@ router.post('/clock-out', attendanceController.clockOut);
 router.get('/today', attendanceController.getTodayAttendance);
 router.get('/history', attendanceController.getHistory);
 
-router.get('/overview', requirePermission('canViewReports'), attendanceController.getOverview);
+router.get('/overview', attendanceController.getOverview);
 router.get('/weekly-summary', requireRole('superadmin', 'admin'), attendanceController.getWeeklySummary);
 router.patch('/:id/approve', requirePermission('canEditAttendance'), attendanceController.approveAttendance);
 

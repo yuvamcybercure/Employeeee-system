@@ -16,14 +16,14 @@ export default function DashboardLayout({
             <div className="flex min-h-screen bg-[#f8fafc]">
                 <Sidebar />
                 <div className="flex-1 flex flex-col min-w-0 md:ml-64">
-                    <main className="flex-1 p-4 md:p-10 pt-20 md:pt-10">
+                    <main className="flex-1 p-4 lg:p-12 pt-20 md:pt-12">
                         <AnimatePresence mode="wait">
                             <motion.div
                                 initial={{ opacity: 0, y: 15 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -15 }}
                                 transition={{ duration: 0.4, ease: "easeOut" }}
-                                className="w-full max-w-[1600px] mx-auto"
+                                className="w-full"
                             >
                                 {children}
                             </motion.div>

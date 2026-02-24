@@ -7,13 +7,13 @@ import { Toaster } from "@/components/ui/toaster";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-    title: "TaskEase | Employee Management System",
+    title: "Kinetik | Employee Management System",
     description: "Secure, real-time Employee Management and Attendance System",
     manifest: "/manifest.json",
     appleWebApp: {
         capable: true,
         statusBarStyle: "default",
-        title: "TaskEase",
+        title: "Kinetik",
     },
 };
 

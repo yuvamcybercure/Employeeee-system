@@ -36,13 +36,26 @@ export function UserDialog({ user, onClose, onSuccess }: UserDialogProps) {
             if (user) {
                 await api.patch(`/users/${user._id}`, formData);
             } else {
-                await api.post('/auth/register', formData);
+                await api.post('/users', formData);
             }
             onSuccess();
             onClose();
         } catch (err: any) {
             setError(err.response?.data?.message || 'Something went wrong');
         } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm('Are you absolutely sure you want to PERMANENTLY delete this user? This action cannot be undone.')) return;
+        setLoading(true);
+        try {
+            await api.delete(`/users/${user._id}`);
+            onSuccess();
+            onClose();
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Deletion failed');
             setLoading(false);
         }
     };
@@ -127,37 +140,39 @@ export function UserDialog({ user, onClose, onSuccess }: UserDialogProps) {
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700 ml-1">Role</label>
-                            {!user && (
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Password</label>
-                                    <input
-                                        type="password"
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium text-sm"
-                                        value={formData.password}
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                            )}
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700 ml-1">Password</label>
+                                <input
+                                    type="password"
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium text-sm"
+                                    placeholder={user ? "Leave blank to keep current" : "Set initial password"}
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                />
+                            </div>
+
                             {user?.plainPassword && (
-                                <div className="p-4 bg-yellow-50 rounded-2xl border border-yellow-100">
-                                    <p className="text-[10px] font-black text-yellow-600 uppercase tracking-widest mb-1">Current Password (Visible to Admin)</p>
-                                    <p className="text-sm font-mono font-bold text-slate-700">{user.plainPassword}</p>
+                                <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Decrypted Identity Password</p>
+                                    <p className="text-sm font-mono font-black text-slate-700">{user.plainPassword}</p>
                                 </div>
                             )}
-                            <div className="relative">
-                                <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                <select
-                                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary/10 outline-none transition-all appearance-none"
-                                    value={formData.role}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                                >
-                                    <option value="employee">Employee</option>
-                                    <option value="admin">Admin</option>
-                                    <option value="superadmin">Super Admin</option>
-                                </select>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700 ml-1">System Privilege</label>
+                                <div className="relative">
+                                    <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                    <select
+                                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary/10 outline-none transition-all appearance-none"
+                                        value={formData.role}
+                                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                                    >
+                                        <option value="employee">Employee</option>
+                                        <option value="admin">Admin</option>
+                                        <option value="superadmin">Super Admin</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -193,19 +208,32 @@ export function UserDialog({ user, onClose, onSuccess }: UserDialogProps) {
                     </div>
                 </form>
 
-                <div className="p-8 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-4">
-                    <button
-                        onClick={onClose}
-                        className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl transition-all"
-                    >
-                        Cancel
-                    </button>
+                <div className="p-8 border-t border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between gap-4">
+                    <div className="flex gap-4">
+                        {user && (
+                            <button
+                                type="button"
+                                onClick={handleDelete}
+                                disabled={loading}
+                                className="px-6 py-3 text-red-500 font-bold hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100"
+                            >
+                                Delete User
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl transition-all"
+                        >
+                            Cancel
+                        </button>
+                    </div>
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70"
+                        className="flex items-center gap-2 px-10 py-3 bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70"
                     >
-                        {loading ? <Loader2 className="animate-spin" size={20} /> : <><Save size={20} /> {user ? 'Update User' : 'Create User'}</>}
+                        {loading ? <Loader2 className="animate-spin" size={20} /> : <><Save size={20} /> {user ? 'Update Provision' : 'Create Access'}</>}
                     </button>
                 </div>
             </div>

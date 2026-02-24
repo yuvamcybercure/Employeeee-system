@@ -1,5 +1,8 @@
 const Attendance = require('../models/Attendance');
 const GeofenceSettings = require('../models/GeofenceSettings');
+const User = require('../models/User');
+const Leave = require('../models/Leave');
+const Timesheet = require('../models/Timesheet');
 const { uploadBase64 } = require('../config/cloudinary');
 const { logActivity } = require('../middleware/logger');
 
@@ -81,13 +84,21 @@ exports.clockOut = async (req, res) => {
     try {
         const today = new Date().toISOString().split('T')[0];
         const attendance = await Attendance.findOne({ userId: req.user._id, date: today });
-        if (!attendance?.clockIn?.time) return res.status(400).json({ message: 'You have not clocked in today' });
-        if (attendance.clockOut?.time) return res.status(400).json({ message: 'Already clocked out today' });
+
+        if (!attendance || !attendance.clockIn || !attendance.clockIn.time) {
+            return res.status(400).json({ message: 'You have not clocked in today' });
+        }
+
+        if (attendance.clockOut && attendance.clockOut.time) {
+            return res.status(400).json({ message: 'Already clocked out today' });
+        }
 
         const capture = await buildCapture(req.body, req);
 
-        // Calculate total hours
-        const totalHours = (new Date() - attendance.clockIn.time) / 3600000;
+        // Calculate total hours robustly
+        const clockInTime = new Date(attendance.clockIn.time);
+        const clockOutTime = new Date();
+        const totalHours = Math.max(0, (clockOutTime - clockInTime) / 3600000);
 
         const updated = await Attendance.findOneAndUpdate(
             { _id: attendance._id },
@@ -95,9 +106,10 @@ exports.clockOut = async (req, res) => {
             { new: true },
         );
 
-        await logActivity(req.user._id, 'CLOCK_OUT', 'attendance', { date: today, totalHours }, req, attendance._id, 'Attendance');
+        await logActivity(req.user._id, 'CLOCK_OUT', 'attendance', { date: today, totalHours: parseFloat(totalHours.toFixed(2)) }, req, attendance._id, 'Attendance');
         res.json({ success: true, attendance: updated });
     } catch (err) {
+        console.error('Clock-out Error:', err);
         res.status(500).json({ message: err.message });
     }
 };
@@ -116,52 +128,163 @@ exports.getTodayAttendance = async (req, res) => {
 // GET /api/attendance/history?userId=&month=&year=
 exports.getHistory = async (req, res) => {
     try {
-        const userId = req.query.userId || req.user._id;
-        // Only admins/superadmins can query other users
-        if (String(userId) !== String(req.user._id) && !['admin', 'superadmin'].includes(req.user.role)) {
+        const userId = req.query.userId || (req.user.role === 'employee' ? req.user._id : null);
+
+        // If not admin/superadmin, can only view own history
+        if (userId && String(userId) !== String(req.user._id) && !['admin', 'superadmin'].includes(req.user.role)) {
             return res.status(403).json({ message: 'Access denied' });
         }
+
         const { month, year } = req.query;
-        let filter = { userId };
+        let query = {};
+
+        if (userId) {
+            query.userId = userId;
+        }
+
         if (month && year) {
             const pad = String(month).padStart(2, '0');
-            filter.date = { $gte: `${year}-${pad}-01`, $lte: `${year}-${pad}-31` };
+            query.date = { $regex: `^${year}-${pad}-` };
         }
-        const records = await Attendance.find(filter).sort({ date: -1 });
-        res.json({ success: true, records });
+
+        let records = await Attendance.find(query).populate('userId', 'name employeeId profilePhoto').sort({ date: -1 });
+
+        // Fetch timesheet data to merge hours
+        const timesheetQuery = { ...query };
+        if (month && year) {
+            const pad = String(month).padStart(2, '0');
+            timesheetQuery.date = { $regex: `^${year}-${pad}-` };
+        }
+        const timesheets = await Timesheet.find(timesheetQuery);
+
+        // Map timesheet hours to dates
+        const timesheetMap = {};
+        timesheets.forEach(ts => {
+            const key = `${ts.userId}_${ts.date}`;
+            timesheetMap[key] = (timesheetMap[key] || 0) + ts.hoursWorked;
+        });
+
+        // Enrich records with timesheet hours and format
+        let enrichedRecords = records.map(r => {
+            const obj = r.toObject();
+            const tsKey = `${r.userId._id}_${r.date}`;
+            obj.timesheetHours = timesheetMap[tsKey] || 0;
+            return obj;
+        });
+
+        // Detect Sundays if filtering by month/year and a single user
+        if (month && year && userId) {
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const existingDates = new Set(enrichedRecords.map(r => r.date));
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dateObj = new Date(year, month - 1, day);
+
+                if (dateObj.getDay() === 0 && !existingDates.has(dateStr)) {
+                    enrichedRecords.push({
+                        date: dateStr,
+                        status: 'Sunday',
+                        isVirtual: true,
+                        userId: enrichedRecords[0]?.userId || req.user._id
+                    });
+                }
+            }
+            enrichedRecords.sort((a, b) => b.date.localeCompare(a.date));
+        }
+
+        res.json({ success: true, records: enrichedRecords });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
-// GET /api/attendance/overview  (Admin/Superadmin)
+// GET /api/attendance/overview?month=&year=
 exports.getOverview = async (req, res) => {
     try {
-        const today = new Date().toISOString().split('T')[0];
-        const records = await Attendance.find({ date: today }).populate('userId', 'name department profilePhoto');
+        const { month, year } = req.query;
+        const now = new Date();
+        const targetMonth = month || (now.getMonth() + 1);
+        const targetYear = year || now.getFullYear();
+        const pad = String(targetMonth).padStart(2, '0');
+        const datePrefix = `${targetYear}-${pad}-`;
 
-        // Detect IP conflicts
-        const ipMap = {};
-        records.forEach(r => {
-            if (r.clockIn?.ip) {
-                if (!ipMap[r.clockIn.ip]) ipMap[r.clockIn.ip] = [];
-                ipMap[r.clockIn.ip].push({ userId: r.userId, attendanceId: r._id });
-            }
+        const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
+
+        let query = { date: { $regex: `^${datePrefix}` } };
+        if (!isAdmin) query.userId = req.user._id;
+
+        const records = await Attendance.find(query).populate('userId', 'name department profilePhoto employeeId');
+
+        // Total employees count (for Admin only)
+        const totalEmployees = isAdmin ? await User.countDocuments({ role: 'employee', isActive: true }) : 1;
+
+        // Stats calculation
+        let presentCount = 0;
+        let lateCount = 0;
+
+        if (isAdmin) {
+            const presentSet = new Set();
+            lateCount = records.filter(r => r.status === 'late').length;
+            records.forEach(r => {
+                if (['present', 'late'].includes(r.status)) presentSet.add(String(r.userId._id));
+            });
+            presentCount = presentSet.size;
+        } else {
+            // Personal stats for employee
+            presentCount = records.filter(r => ['present', 'late'].includes(r.status)).length;
+            lateCount = records.filter(r => r.status === 'late').length;
+        }
+
+        // Leave days in this month
+        const startOfMonth = new Date(targetYear, targetMonth - 1, 1);
+        const endOfMonth = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+
+        let leaveQuery = {
+            status: 'approved',
+            $or: [
+                { startDate: { $gte: startOfMonth, $lte: endOfMonth } },
+                { endDate: { $gte: startOfMonth, $lte: endOfMonth } },
+                { $and: [{ startDate: { $lte: startOfMonth } }, { endDate: { $gte: endOfMonth } }] }
+            ]
+        };
+        if (!isAdmin) leaveQuery.userId = req.user._id;
+
+        const leaves = await Leave.find(leaveQuery);
+        const totalLeavesCount = leaves.reduce((acc, curr) => acc + (curr.totalDays || 0), 0);
+
+        // Days in month
+        const totalDays = new Date(targetYear, targetMonth, 0).getDate();
+
+        // Detect IP conflicts (Today only - Admin only)
+        let ipConflicts = [];
+        if (isAdmin) {
+            const todayStr = now.toISOString().split('T')[0];
+            const todayRecords = records.filter(r => r.date === todayStr);
+            const ipMap = {};
+            todayRecords.forEach(r => {
+                if (r.clockIn?.ip) {
+                    if (!ipMap[r.clockIn.ip]) ipMap[r.clockIn.ip] = [];
+                    ipMap[r.clockIn.ip].push({ userId: r.userId, attendanceId: r._id });
+                }
+            });
+            ipConflicts = Object.entries(ipMap)
+                .filter(([, users]) => users.length > 1)
+                .map(([ip, users]) => ({ ip, users }));
+        }
+
+        res.json({
+            success: true,
+            records: isAdmin ? records : [], // Employees only need stats, history comes from getHistory
+            stats: {
+                present: presentCount,
+                absent: Math.max(0, (isAdmin ? totalEmployees : totalDays) - presentCount - (isAdmin ? 0 : totalLeavesCount)),
+                late: lateCount,
+                leaves: totalLeavesCount,
+                totalDays
+            },
+            ipConflicts
         });
-        const ipConflicts = Object.entries(ipMap)
-            .filter(([, users]) => users.length > 1)
-            .map(([ip, users]) => ({ ip, users }));
-
-        const present = records.filter(r => ['present', 'late'].includes(r.status));
-        const late = records.filter(r => r.status === 'late');
-        const pending = records.filter(r => r.status === 'pending');
-
-        // Active map locations (clocked in, not yet out)
-        const activeLocations = records
-            .filter(r => r.clockIn?.lat && !r.clockOut?.time)
-            .map(r => ({ userId: r.userId, lat: r.clockIn.lat, lng: r.clockIn.lng, time: r.clockIn.time }));
-
-        res.json({ success: true, records, present: present.length, late: late.length, pending: pending.length, total: records.length, ipConflicts, activeLocations });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

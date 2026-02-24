@@ -91,7 +91,7 @@ export function Sidebar() {
                         <Sparkles size={20} className="animate-pulse" />
                     </div>
                     <div>
-                        <span className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary tracking-tight">TaskEase</span>
+                        <span className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary tracking-tight">Kinetik</span>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Enterprise</p>
                     </div>
                 </div>

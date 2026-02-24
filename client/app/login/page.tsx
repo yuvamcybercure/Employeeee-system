@@ -39,7 +39,7 @@ export default function LoginPage() {
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl text-primary-foreground mb-4 shadow-lg shadow-primary/20">
                         <ShieldCheck size={32} />
                     </div>
-                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">TaskEase</h1>
+                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Kinetik</h1>
                     <p className="text-slate-500 mt-2 font-medium">Employee Management System</p>
                 </div>
 
@@ -102,7 +102,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="mt-8 text-center text-slate-400 text-xs font-medium">
-                    &copy; 2026 TaskEase HRM. All rights reserved.
+                    &copy; 2026 Kinetik HRM. All rights reserved.
                 </div>
             </div>
         </div>

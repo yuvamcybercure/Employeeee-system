@@ -1,0 +1,16 @@
+{
+    "name": "Kinetik | Employee Management System",
+    "short_name": "Kinetik",
+    "description": "Secure, real-time Employee Management and Attendance System",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#2c92b2",
+    "icons": [
+        {
+            "src": "/favicon.ico",
+            "sizes": "64x64 32x32 24x24 16x16",
+            "type": "image/x-icon"
+        }
+    ]
+}
