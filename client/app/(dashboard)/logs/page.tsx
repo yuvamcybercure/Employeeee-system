@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import DashboardLayout from '../layout';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import {
     Activity,
     Search,
@@ -36,7 +36,7 @@ export default function LogsPage() {
     };
 
     return (
-        <DashboardLayout allowedRoles={['superadmin']}>
+        <ProtectedRoute allowedRoles={['superadmin']}>
             <div className="space-y-10">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
@@ -116,7 +116,7 @@ export default function LogsPage() {
                     </div>
                 </div>
             </div>
-        </DashboardLayout>
+        </ProtectedRoute>
     );
 }
 

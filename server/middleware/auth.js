@@ -7,7 +7,7 @@ const protect = async (req, res, next) => {
         if (!token) return res.status(401).json({ message: 'Not authenticated' });
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id).select('-password');
+        const user = await User.findById(decoded.id).select('-password').populate('organizationId', 'name slug');
         if (!user || !user.isActive) return res.status(401).json({ message: 'User not found or inactive' });
 
         req.user = user;

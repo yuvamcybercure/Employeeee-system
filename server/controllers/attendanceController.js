@@ -17,7 +17,7 @@ const getDistance = (lat1, lng1, lat2, lng2) => {
 };
 
 const buildCapture = async (data, req) => {
-    const { photo, lat, lng, device, faceDetected } = data;
+    const { photo, lat, lng, device, faceDetected, address } = data;
     let photoUrl = '';
     let photoPublicId = '';
 
@@ -31,10 +31,12 @@ const buildCapture = async (data, req) => {
 
     // Check geofence
     let withinGeofence = true;
-    const geofence = await GeofenceSettings.findOne({ isActive: true });
-    if (geofence && lat && lng) {
-        const dist = getDistance(parseFloat(lat), parseFloat(lng), geofence.lat, geofence.lng);
-        withinGeofence = dist <= geofence.radiusMeters;
+    if (lat && lng && req.user?.organizationId?._id) {
+        const geofence = await GeofenceSettings.findOne({ organizationId: req.user.organizationId._id, isActive: true });
+        if (geofence) {
+            const dist = getDistance(parseFloat(lat), parseFloat(lng), geofence.lat, geofence.lng);
+            withinGeofence = dist <= geofence.radiusMeters;
+        }
     }
 
     return {
@@ -43,6 +45,7 @@ const buildCapture = async (data, req) => {
         photoPublicId,
         lat: lat ? parseFloat(lat) : null,
         lng: lng ? parseFloat(lng) : null,
+        address: address || '',
         ip,
         device: device || 'Unknown',
         userAgent: req.headers['user-agent'] || '',
@@ -55,19 +58,24 @@ const buildCapture = async (data, req) => {
 exports.clockIn = async (req, res) => {
     try {
         const today = new Date().toISOString().split('T')[0];
-        const existing = await Attendance.findOne({ userId: req.user._id, date: today });
+        const existing = await Attendance.findOne({ userId: req.user._id, date: today, organizationId: req.user.organizationId._id });
         if (existing?.clockIn?.time) return res.status(400).json({ message: 'Already clocked in today' });
 
         const capture = await buildCapture(req.body, req);
 
-        // Determine status
+        // Determine status dynamically from organization settings
+        const orgSettings = req.user.organizationId?.settings?.attendanceSettings;
+        const officeStartTimeStr = orgSettings?.startTime || '09:00';
+        const [startHours, startMinutes] = officeStartTimeStr.split(':').map(Number);
+
         const now = new Date();
         const lateThreshold = new Date();
-        lateThreshold.setHours(9, 30, 0, 0); // Late after 9:30 AM
+        lateThreshold.setHours(startHours, startMinutes + 15, 0, 0); // Grace period: 15 mins after startTime
+
         let status = capture.withinGeofence ? (now > lateThreshold ? 'late' : 'present') : 'pending';
 
         const attendance = await Attendance.findOneAndUpdate(
-            { userId: req.user._id, date: today },
+            { userId: req.user._id, date: today, organizationId: req.user.organizationId._id },
             { $set: { clockIn: capture, status } },
             { upsert: true, new: true },
         );
@@ -83,7 +91,7 @@ exports.clockIn = async (req, res) => {
 exports.clockOut = async (req, res) => {
     try {
         const today = new Date().toISOString().split('T')[0];
-        const attendance = await Attendance.findOne({ userId: req.user._id, date: today });
+        const attendance = await Attendance.findOne({ userId: req.user._id, date: today, organizationId: req.user.organizationId._id });
 
         if (!attendance || !attendance.clockIn || !attendance.clockIn.time) {
             return res.status(400).json({ message: 'You have not clocked in today' });
@@ -128,6 +136,10 @@ exports.getTodayAttendance = async (req, res) => {
 // GET /api/attendance/history?userId=&month=&year=
 exports.getHistory = async (req, res) => {
     try {
+        if (!req.user || !req.user.organizationId) {
+            return res.status(401).json({ message: 'User or Organization data missing' });
+        }
+
         const userId = req.query.userId || (req.user.role === 'employee' ? req.user._id : null);
 
         // If not admin/superadmin, can only view own history
@@ -136,65 +148,71 @@ exports.getHistory = async (req, res) => {
         }
 
         const { month, year } = req.query;
-        let query = {};
+        let query = { organizationId: req.user.organizationId._id };
 
-        if (userId) {
-            query.userId = userId;
-        }
+        if (userId) query.userId = userId;
 
         if (month && year) {
             const pad = String(month).padStart(2, '0');
             query.date = { $regex: `^${year}-${pad}-` };
         }
 
-        let records = await Attendance.find(query).populate('userId', 'name employeeId profilePhoto').sort({ date: -1 });
+        let records = await Attendance.find(query)
+            .populate('userId', 'name employeeId profilePhoto')
+            .sort({ date: -1 });
 
-        // Fetch timesheet data to merge hours
-        const timesheetQuery = { ...query };
-        if (month && year) {
-            const pad = String(month).padStart(2, '0');
-            timesheetQuery.date = { $regex: `^${year}-${pad}-` };
-        }
-        const timesheets = await Timesheet.find(timesheetQuery);
+        // Safely merge timesheet hours
+        let enrichedRecords = [];
+        try {
+            const timesheetQuery = { ...query };
+            const timesheets = await Timesheet.find(timesheetQuery);
+            const timesheetMap = {};
 
-        // Map timesheet hours to dates
-        const timesheetMap = {};
-        timesheets.forEach(ts => {
-            const key = `${ts.userId}_${ts.date}`;
-            timesheetMap[key] = (timesheetMap[key] || 0) + ts.hoursWorked;
-        });
+            timesheets.forEach(ts => {
+                const key = `${ts.userId}_${ts.date}`;
+                timesheetMap[key] = (timesheetMap[key] || 0) + ts.hoursWorked;
+            });
 
-        // Enrich records with timesheet hours and format
-        let enrichedRecords = records.map(r => {
-            const obj = r.toObject();
-            const tsKey = `${r.userId._id}_${r.date}`;
-            obj.timesheetHours = timesheetMap[tsKey] || 0;
-            return obj;
-        });
-
-        // Detect Sundays if filtering by month/year and a single user
-        if (month && year && userId) {
-            const daysInMonth = new Date(year, month, 0).getDate();
-            const existingDates = new Set(enrichedRecords.map(r => r.date));
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const dateObj = new Date(year, month - 1, day);
-
-                if (dateObj.getDay() === 0 && !existingDates.has(dateStr)) {
-                    enrichedRecords.push({
-                        date: dateStr,
-                        status: 'Sunday',
-                        isVirtual: true,
-                        userId: enrichedRecords[0]?.userId || req.user._id
-                    });
+            enrichedRecords = records.map(r => {
+                const obj = r.toObject();
+                if (r.userId && r.userId._id) {
+                    const tsKey = `${r.userId._id}_${r.date}`;
+                    obj.timesheetHours = timesheetMap[tsKey] || 0;
+                } else {
+                    obj.timesheetHours = 0;
                 }
+                return obj;
+            });
+
+            // Detect Sundays if filtering by month/year and a single user
+            if (month && year && userId) {
+                const daysInMonth = new Date(year, month, 0).getDate();
+                const existingDates = new Set(enrichedRecords.map(r => r.date));
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const dateObj = new Date(year, month - 1, day);
+
+                    if (dateObj.getDay() === 0 && !existingDates.has(dateStr)) {
+                        enrichedRecords.push({
+                            date: dateStr,
+                            status: 'Sunday',
+                            isVirtual: true,
+                            userId: records[0]?.userId || req.user._id
+                        });
+                    }
+                }
+                enrichedRecords.sort((a, b) => b.date.localeCompare(a.date));
             }
-            enrichedRecords.sort((a, b) => b.date.localeCompare(a.date));
+        } catch (enrichErr) {
+            console.error('Attendance Enrichment Error:', enrichErr);
+            // Fallback to basic records if enrichment fails
+            enrichedRecords = records.map(r => r.toObject());
         }
 
         res.json({ success: true, records: enrichedRecords });
     } catch (err) {
+        console.error('Get History Error:', err);
         res.status(500).json({ message: err.message });
     }
 };
@@ -211,13 +229,13 @@ exports.getOverview = async (req, res) => {
 
         const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
 
-        let query = { date: { $regex: `^${datePrefix}` } };
+        let query = { date: { $regex: `^${datePrefix}` }, organizationId: req.user.organizationId._id };
         if (!isAdmin) query.userId = req.user._id;
 
         const records = await Attendance.find(query).populate('userId', 'name department profilePhoto employeeId');
 
         // Total employees count (for Admin only)
-        const totalEmployees = isAdmin ? await User.countDocuments({ role: 'employee', isActive: true }) : 1;
+        const totalEmployees = isAdmin ? await User.countDocuments({ role: 'employee', isActive: true, organizationId: req.user.organizationId._id }) : 1;
 
         // Stats calculation
         let presentCount = 0;
@@ -301,8 +319,8 @@ exports.getWeeklySummary = async (req, res) => {
         }
 
         const results = await Promise.all(days.map(async (date) => {
-            const total = await Attendance.countDocuments({ date });
-            const present = await Attendance.countDocuments({ date, status: { $in: ['present', 'late'] } });
+            const total = await Attendance.countDocuments({ date, organizationId: req.user.organizationId._id });
+            const present = await Attendance.countDocuments({ date, status: { $in: ['present', 'late'] }, organizationId: req.user.organizationId._id });
             return { date, total, present, percentage: total > 0 ? Math.round((present / total) * 100) : 0 };
         }));
 
@@ -315,7 +333,11 @@ exports.getWeeklySummary = async (req, res) => {
 // PATCH /api/attendance/:id/approve  (Admin approves pending)
 exports.approveAttendance = async (req, res) => {
     try {
-        const att = await Attendance.findByIdAndUpdate(req.params.id, { status: 'present' }, { new: true });
+        const att = await Attendance.findOneAndUpdate(
+            { _id: req.params.id, organizationId: req.user.organizationId._id },
+            { status: 'present' },
+            { new: true }
+        );
         if (!att) return res.status(404).json({ message: 'Record not found' });
         await logActivity(req.user._id, 'APPROVE_ATTENDANCE', 'attendance', {}, req, att._id, 'Attendance');
         res.json({ success: true, attendance: att });

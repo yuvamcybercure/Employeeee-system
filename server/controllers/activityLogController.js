@@ -1,11 +1,12 @@
 const ActivityLog = require('../models/ActivityLog');
 
-// GET /api/logs
+// GET /api/activity-logs
 exports.getLogs = async (req, res) => {
     try {
         const { page = 1, limit = 50, module } = req.query;
-        const filter = {};
+        const filter = { organizationId: req.user.organizationId._id };
         if (module) filter.module = module;
+        if (req.user.role === 'admin') filter.userId = req.user._id;
 
         const logs = await ActivityLog.find(filter)
             .populate('userId', 'name email')

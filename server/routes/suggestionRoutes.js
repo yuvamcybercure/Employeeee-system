@@ -8,6 +8,8 @@ router.use(protect);
 
 router.get('/', suggestionController.getSuggestions);
 router.post('/', suggestionController.createSuggestion);
+router.get('/:id/comments', suggestionController.getComments);
+router.post('/:id/comments', suggestionController.addComment);
 router.patch('/:id/upvote', suggestionController.upvoteSuggestion);
 router.patch('/:id/respond', requirePermission('canViewSuggestions'), suggestionController.respondToSuggestion);
 

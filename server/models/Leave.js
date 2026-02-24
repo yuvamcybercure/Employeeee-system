@@ -2,9 +2,10 @@ const mongoose = require('mongoose');
 
 const leaveSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
     type: {
         type: String,
-        enum: ['casual', 'sick', 'earned', 'unpaid', 'maternity', 'paternity', 'comp-off'],
+        enum: ['casual', 'sick', 'earned', 'unpaid', 'maternity', 'paternity', 'comp-off', 'wfh'],
         required: true,
     },
     startDate: { type: Date, required: true },

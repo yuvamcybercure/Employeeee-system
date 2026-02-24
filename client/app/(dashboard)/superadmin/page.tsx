@@ -1,10 +1,11 @@
 "use client";
 
 import React from 'react';
-import DashboardLayout from '../layout';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { PermissionMatrix } from '@/components/PermissionMatrix';
 import { GeofenceSettings } from '@/components/GeofenceSettings';
 import { motion } from 'framer-motion';
+import { OrgSettingsModal } from '@/components/dashboard/OrgSettingsModal';
 import {
     ShieldAlert,
     Users,
@@ -17,6 +18,9 @@ import {
     Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AdminResetRequests } from '@/components/dashboard/AdminResetRequests';
+import { AttendanceSettings } from '@/components/admin/AttendanceSettings';
+import { Clock } from 'lucide-react';
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -34,6 +38,7 @@ const itemVariants = {
 };
 
 export default function SuperadminDashboard() {
+    const [showOrgModal, setShowOrgModal] = React.useState(false);
     const stats = [
         { label: "Active Nodes", value: "156", icon: Users, color: "text-indigo-500", bg: "bg-indigo-50", border: "border-indigo-100" },
         { label: "Protocol Compliance", value: "12", sub: "Active", icon: FileText, color: "text-emerald-500", bg: "bg-emerald-50", border: "border-emerald-100" },
@@ -42,7 +47,7 @@ export default function SuperadminDashboard() {
     ];
 
     return (
-        <DashboardLayout allowedRoles={['superadmin']}>
+        <ProtectedRoute allowedRoles={['superadmin']}>
             <motion.div
                 initial="hidden"
                 animate="visible"
@@ -59,11 +64,17 @@ export default function SuperadminDashboard() {
                         <button className="flex items-center gap-2 px-8 py-4 bg-slate-900 text-white rounded-[1.5rem] text-xs font-black uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/30 hover:scale-[1.02] transition-all">
                             <ShieldAlert size={18} /> Protocol Logs
                         </button>
-                        <button className="w-14 h-14 glass-card rounded-2xl flex items-center justify-center text-primary shadow-xl hover-scale">
+                        <button
+                            onClick={() => setShowOrgModal(true)}
+                            className="w-14 h-14 glass-card rounded-2xl flex items-center justify-center text-primary shadow-xl hover-scale group relative"
+                        >
                             <Server size={24} />
+                            <span className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-slate-800 text-white text-[10px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Org Settings</span>
                         </button>
                     </div>
                 </motion.div>
+
+                <OrgSettingsModal isOpen={showOrgModal} onClose={() => setShowOrgModal(false)} />
 
                 {/* System Stats Overview */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -102,6 +113,11 @@ export default function SuperadminDashboard() {
                         <div className="glass-card rounded-[3rem] p-4 overflow-hidden border-white/40">
                             <PermissionMatrix />
                         </div>
+
+                        {/* Password Reset Requests */}
+                        <div className="mt-12">
+                            <AdminResetRequests />
+                        </div>
                     </motion.div>
 
                     {/* Geofencing & Security Config */}
@@ -118,6 +134,22 @@ export default function SuperadminDashboard() {
 
                         <div className="glass-card rounded-[3rem] p-8 border-white/40">
                             <GeofenceSettings />
+                        </div>
+
+                        {/* Attendance Lifecycle Protocols */}
+                        <div className="space-y-8 mt-12">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 bg-amber-500 rounded-3xl flex items-center justify-center text-white shadow-xl shadow-amber-500/30">
+                                    <Clock size={28} />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight">Attendance Lifecycle</h2>
+                                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Automated Operations</p>
+                                </div>
+                            </div>
+                            <div className="glass-card rounded-[3rem] p-10 border-white/40">
+                                <AttendanceSettings />
+                            </div>
                         </div>
 
                         {/* High-Risk Warning Card */}
@@ -149,6 +181,6 @@ export default function SuperadminDashboard() {
                     </motion.div>
                 </div>
             </motion.div>
-        </DashboardLayout>
+        </ProtectedRoute>
     );
 }

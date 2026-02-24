@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import DashboardLayout from '../../layout';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import {
     ChevronLeft,
     Plus,
@@ -20,7 +20,7 @@ export default function KanbanPage({ params }: { params: { id: string } }) {
     const [columns, setColumns] = useState(initialColumns);
 
     return (
-        <DashboardLayout allowedRoles={['employee', 'admin', 'superadmin']}>
+        <ProtectedRoute allowedRoles={['employee', 'admin', 'superadmin']}>
             <div className="h-[calc(100vh-140px)] flex flex-col space-y-8">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -106,7 +106,7 @@ export default function KanbanPage({ params }: { params: { id: string } }) {
                     ))}
                 </div>
             </div>
-        </DashboardLayout>
+        </ProtectedRoute>
     );
 }
 

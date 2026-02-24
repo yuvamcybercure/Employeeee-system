@@ -2,26 +2,33 @@ const GeofenceSettings = require('../models/GeofenceSettings');
 const { logActivity } = require('../middleware/logger');
 
 // GET /api/geofence
-exports.getGeofence = async (req, res) => {
+exports.getSettings = async (req, res) => {
     try {
-        const geofence = await GeofenceSettings.findOne({}).populate('updatedBy', 'name');
-        res.json({ success: true, geofence });
+        let settings = await GeofenceSettings.findOne({ organizationId: req.user.organizationId._id });
+        if (!settings) {
+            settings = await GeofenceSettings.create({
+                organizationId: req.user.organizationId._id,
+                lat: 0,
+                lng: 0,
+                officeName: 'Head Office'
+            });
+        }
+        res.json({ success: true, settings });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
-// PUT /api/geofence
-exports.updateGeofence = async (req, res) => {
+// PATCH /api/geofence
+exports.updateSettings = async (req, res) => {
     try {
-        const { officeName, lat, lng, radiusMeters, isActive } = req.body;
-        const geofence = await GeofenceSettings.findOneAndUpdate(
-            {},
-            { officeName, lat, lng, radiusMeters, isActive, updatedBy: req.user._id },
-            { upsert: true, new: true, runValidators: true },
+        const settings = await GeofenceSettings.findOneAndUpdate(
+            { organizationId: req.user.organizationId._id },
+            { ...req.body, updatedBy: req.user._id },
+            { new: true, upsert: true, runValidators: true }
         );
-        await logActivity(req.user._id, 'UPDATE_GEOFENCE', 'settings', { lat, lng, radiusMeters }, req, geofence._id, 'GeofenceSettings');
-        res.json({ success: true, geofence });
+        await logActivity(req.user._id, 'UPDATE_GEOFENCE', 'settings', req.body, req, settings._id, 'GeofenceSettings');
+        res.json({ success: true, settings });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

@@ -6,7 +6,7 @@ const { requireRole } = require('../middleware/rbac');
 
 router.use(protect);
 
-router.get('/', geofenceController.getGeofence);
-router.put('/', requireRole('superadmin'), geofenceController.updateGeofence);
+router.get('/', geofenceController.getSettings);
+router.patch('/', requireRole('superadmin'), geofenceController.updateSettings);
 
 module.exports = router;

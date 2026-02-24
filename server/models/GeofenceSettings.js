@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const geofenceSchema = new mongoose.Schema({
-    officeName: { type: String, default: 'Head Office' },
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
+    center: { type: String, default: 'Head Office' },
     lat: { type: Number, required: true, default: 0 },
     lng: { type: Number, required: true, default: 0 },
     radiusMeters: { type: Number, default: 200, min: 50, max: 5000 },

@@ -4,16 +4,46 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import api from '@/lib/api';
 
+interface Organization {
+    _id: string;
+    name: string;
+    slug: string;
+    logo?: string;
+    settings?: {
+        branding?: {
+            primaryColor?: string;
+            secondaryColor?: string;
+        };
+    };
+}
+
 interface User {
     _id: string;
     name: string;
     email: string;
     role: 'superadmin' | 'admin' | 'employee';
     employeeId: string;
-    plainPassword?: string;
     department: string;
+    designation: string;
+    phone: string;
     profilePhoto: string;
+    joinDate: string;
+    fatherName?: string;
+    gender?: string;
+    dob?: string;
+    nationality?: string;
+    religion?: string;
+    maritalStatus?: string;
+    address?: string;
+    emergencyContact?: {
+        name: string;
+        relationship: string;
+        phone: string;
+        email: string;
+    };
+    documents?: any[];
     permissions: Record<string, boolean>;
+    organizationId: Organization;
 }
 
 interface AuthContextType {

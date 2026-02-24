@@ -12,7 +12,7 @@ interface LeaveDialogProps {
 
 export function LeaveDialog({ onClose, onSuccess }: LeaveDialogProps) {
     const [formData, setFormData] = useState({
-        type: 'annual',
+        type: 'sick',
         startDate: '',
         endDate: '',
         reason: '',
@@ -69,7 +69,7 @@ export function LeaveDialog({ onClose, onSuccess }: LeaveDialogProps) {
                     <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-700 ml-1">Leave Type</label>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {['annual', 'sick', 'casual', 'emergency'].map((type) => (
+                            {['sick', 'casual', 'wfh', 'unpaid'].map((type) => (
                                 <button
                                     key={type}
                                     type="button"

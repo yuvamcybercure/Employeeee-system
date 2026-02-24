@@ -21,7 +21,13 @@ export function UserDialog({ user, onClose, onSuccess }: UserDialogProps) {
         designation: user?.designation || '',
         phone: user?.phone || '',
         employeeId: user?.employeeId || '',
-        isActive: user?.isActive ?? true
+        isActive: user?.isActive ?? true,
+        leaveEntitlements: user?.leaveEntitlements || {
+            sick: { yearly: 12, monthly: 1 },
+            casual: { yearly: 12, monthly: 1 },
+            wfh: { yearly: 24, monthly: 2 },
+            unpaid: { yearly: 365, monthly: 31 }
+        }
     });
 
     const [loading, setLoading] = useState(false);
@@ -173,6 +179,49 @@ export function UserDialog({ user, onClose, onSuccess }: UserDialogProps) {
                                         <option value="superadmin">Super Admin</option>
                                     </select>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2 space-y-4 pt-4 border-t border-slate-100">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Leave Quotas (Monthly / Yearly)</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {['sick', 'casual', 'wfh', 'unpaid'].map((type) => (
+                                    <div key={type} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{type}</p>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1">
+                                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Month</label>
+                                                <input
+                                                    type="number"
+                                                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold"
+                                                    value={formData.leaveEntitlements[type as keyof typeof formData.leaveEntitlements].monthly}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        leaveEntitlements: {
+                                                            ...formData.leaveEntitlements,
+                                                            [type]: { ...formData.leaveEntitlements[type as keyof typeof formData.leaveEntitlements], monthly: parseInt(e.target.value) }
+                                                        }
+                                                    })}
+                                                />
+                                            </div>
+                                            <div className="flex-1">
+                                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Year</label>
+                                                <input
+                                                    type="number"
+                                                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold"
+                                                    value={formData.leaveEntitlements[type as keyof typeof formData.leaveEntitlements].yearly}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        leaveEntitlements: {
+                                                            ...formData.leaveEntitlements,
+                                                            [type]: { ...formData.leaveEntitlements[type as keyof typeof formData.leaveEntitlements], yearly: parseInt(e.target.value) }
+                                                        }
+                                                    })}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
 

@@ -57,17 +57,24 @@ export function AttendanceDetailsModal({ log, onClose }: AttendanceDetailsModalP
                 </div>
 
                 <div className="p-4 space-y-3 bg-slate-50/50">
-                    <div className="flex items-center justify-between text-[10px] font-bold">
-                        <span className="text-slate-400 flex items-center gap-1.5"><MapPin size={12} /> Geolocation</span>
-                        <span className="text-slate-700">{capture.lat?.toFixed(4)}, {capture.lng?.toFixed(4)}</span>
+                    <div className="space-y-1">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5"><MapPin size={12} /> Office Location</span>
+                        <p className="text-[11px] font-bold text-slate-700 leading-tight">
+                            {capture.address || "No address recorded"}
+                        </p>
+                        <p className="text-[9px] font-bold text-slate-400 font-mono">
+                            {capture.lat?.toFixed(6)}, {capture.lng?.toFixed(6)}
+                        </p>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] font-bold">
-                        <span className="text-slate-400 flex items-center gap-1.5"><Globe size={12} /> IP Address</span>
-                        <span className="text-slate-700">{capture.ip || '---'}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-bold">
-                        <span className="text-slate-400 flex items-center gap-1.5"><Smartphone size={12} /> Device</span>
-                        <span className="text-slate-700 line-clamp-1 max-w-[120px]">{capture.device || '---'}</span>
+                    <div className="grid grid-cols-2 gap-4 mt-2 pt-2 border-t border-slate-100">
+                        <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1"><Globe size={10} /> Network</span>
+                            <span className="text-[10px] font-bold text-slate-700 font-mono">{capture.ip || '---'}</span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1"><Smartphone size={10} /> Hardware</span>
+                            <span className="text-[10px] font-bold text-slate-700 truncate">{capture.device?.split('-')[0] || '---'}</span>
+                        </div>
                     </div>
                 </div>
             </div>

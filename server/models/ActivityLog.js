@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const activityLogSchema = new mongoose.Schema({
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // system can be null
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' }, // Optional for system-wide logs
     action: { type: String, required: true },        // e.g. "UPDATED_PERMISSION"
     module: { type: String, required: true },         // e.g. "permissions", "attendance"
     targetId: { type: mongoose.Schema.Types.ObjectId },

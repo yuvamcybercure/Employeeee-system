@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import DashboardLayout from '../layout';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import api from '@/lib/api';
 import { motion } from 'framer-motion';
 import {
@@ -84,7 +84,7 @@ export default function AdminDashboard() {
     );
 
     return (
-        <DashboardLayout allowedRoles={['admin', 'superadmin']}>
+        <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
             <motion.div
                 initial="hidden"
                 animate="visible"
@@ -308,6 +308,6 @@ export default function AdminDashboard() {
                     </div>
                 </motion.div>
             </motion.div>
-        </DashboardLayout>
+        </ProtectedRoute>
     );
 }

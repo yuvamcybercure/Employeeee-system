@@ -9,6 +9,7 @@ exports.generateAttendancePDF = async (req, res) => {
         const { month, year } = req.query;
         const pad = String(month).padStart(2, '0');
         const records = await Attendance.find({
+            organizationId: req.user.organizationId._id,
             date: { $gte: `${year}-${pad}-01`, $lte: `${year}-${pad}-31` }
         }).populate('userId', 'name employeeId department');
 
@@ -36,6 +37,7 @@ exports.generateAttendanceExcel = async (req, res) => {
         const { month, year } = req.query;
         const pad = String(month).padStart(2, '0');
         const records = await Attendance.find({
+            organizationId: req.user.organizationId._id,
             date: { $gte: `${year}-${pad}-01`, $lte: `${year}-${pad}-31` }
         }).populate('userId', 'name employeeId department');
 

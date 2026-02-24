@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
-import DashboardLayout from '../layout';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useAuth } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -115,7 +115,7 @@ export default function AttendancePage() {
     );
 
     return (
-        <DashboardLayout allowedRoles={['employee', 'admin', 'superadmin']}>
+        <ProtectedRoute allowedRoles={['employee', 'admin', 'superadmin']}>
             <motion.div
                 initial="hidden"
                 animate="visible"
@@ -341,6 +341,6 @@ export default function AttendancePage() {
                     onClose={() => setSelectedLog(null)}
                 />
             )}
-        </DashboardLayout>
+        </ProtectedRoute>
     );
 }

@@ -4,7 +4,7 @@ const { logActivity } = require('../middleware/logger');
 // GET /api/permissions/:role
 exports.getPermissions = async (req, res) => {
     try {
-        const rolePerms = await RolePermission.findOne({ role: req.params.role });
+        const rolePerms = await RolePermission.findOne({ role: req.params.role, organizationId: req.user.organizationId._id });
         res.json({ success: true, permissions: rolePerms?.permissions || {} });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -15,7 +15,7 @@ exports.getPermissions = async (req, res) => {
 exports.updatePermissions = async (req, res) => {
     try {
         const rolePerms = await RolePermission.findOneAndUpdate(
-            { role: req.params.role },
+            { role: req.params.role, organizationId: req.user.organizationId._id },
             { permissions: req.body.permissions },
             { upsert: true, new: true, runValidators: true },
         );
@@ -29,7 +29,7 @@ exports.updatePermissions = async (req, res) => {
 // GET /api/permissions/all  - Get both admin and employee matrices
 exports.getAllPermissions = async (req, res) => {
     try {
-        const data = await RolePermission.find({});
+        const data = await RolePermission.find({ organizationId: req.user.organizationId._id });
         res.json({ success: true, data });
     } catch (err) {
         res.status(500).json({ message: err.message });

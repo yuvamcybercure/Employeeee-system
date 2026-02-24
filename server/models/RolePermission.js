@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 
 // Stores the permission matrix for each role
 const rolePermissionSchema = new mongoose.Schema({
-    role: { type: String, enum: ['admin', 'employee'], required: true, unique: true },
+    role: { type: String, required: true },
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
     permissions: {
         canViewPayroll: { type: Boolean, default: false },
         canEditAttendance: { type: Boolean, default: false },

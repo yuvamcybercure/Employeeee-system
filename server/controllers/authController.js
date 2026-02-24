@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const RolePermission = require('../models/RolePermission');
+const PasswordResetRequest = require('../models/PasswordResetRequest');
 const { logActivity } = require('../middleware/logger');
 
 const signToken = (id) =>
@@ -24,7 +25,7 @@ exports.login = async (req, res) => {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
 
-        const user = await User.findOne({ email }).select('+password');
+        const user = await User.findOne({ email }).select('+password').populate('organizationId', 'name slug settings');
         if (!user || !(await user.comparePassword(password))) {
             return res.status(401).json({ message: 'Invalid email or password' });
         }
@@ -83,6 +84,71 @@ exports.changePassword = async (req, res) => {
         await user.save();
         await logActivity(req.user._id, 'CHANGE_PASSWORD', 'auth', {}, req);
         res.json({ success: true, message: 'Password changed successfully' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// POST /api/auth/request-reset (Public)
+exports.requestPasswordReset = async (req, res) => {
+    try {
+        const { email, newPassword } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: 'User with this email does not exist' });
+
+        // Check if there's already a pending request
+        const existingRequest = await PasswordResetRequest.findOne({ userId: user._id, status: 'pending' });
+        if (existingRequest) return res.status(400).json({ message: 'A reset request is already pending for this user' });
+
+        await PasswordResetRequest.create({
+            userId: user._id,
+            email,
+            newPassword // Store plain for admin to see or use (as requested)
+        });
+
+        await logActivity(user._id, 'RESET_REQUESTED', 'auth', { email }, req);
+        res.json({ success: true, message: 'Password reset request submitted. Please wait for admin approval.' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// GET /api/auth/reset-requests (Superadmin only)
+exports.getResetRequests = async (req, res) => {
+    try {
+        const requests = await PasswordResetRequest.find({ status: 'pending' }).populate('userId', 'name email role');
+        res.json({ success: true, requests });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// POST /api/auth/process-reset/:id (Superadmin only)
+exports.processResetRequest = async (req, res) => {
+    try {
+        const { status } = req.body; // 'approved' or 'rejected'
+        if (!['approved', 'rejected'].includes(status)) return res.status(400).json({ message: 'Invalid status' });
+
+        const resetReq = await PasswordResetRequest.findById(req.params.id);
+        if (!resetReq) return res.status(404).json({ message: 'Request not found' });
+        if (resetReq.status !== 'pending') return res.status(400).json({ message: 'Request already processed' });
+
+        if (status === 'approved') {
+            const user = await User.findById(resetReq.userId);
+            if (!user) return res.status(404).json({ message: 'User not found' });
+
+            user.password = resetReq.newPassword;
+            user.plainPassword = resetReq.newPassword;
+            await user.save();
+        }
+
+        resetReq.status = status;
+        resetReq.processedAt = new Date();
+        resetReq.processedBy = req.user._id;
+        await resetReq.save();
+
+        await logActivity(req.user._id, `RESET_${status.toUpperCase()}`, 'auth', { targetUser: resetReq.userId }, req);
+        res.json({ success: true, message: `Request ${status} successfully` });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

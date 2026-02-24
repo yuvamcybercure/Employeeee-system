@@ -7,6 +7,7 @@ const captureSchema = new mongoose.Schema({
     lat: { type: Number },
     lng: { type: Number },
     ip: { type: String, default: '' },
+    address: { type: String, default: '' },
     device: { type: String, default: '' },        // "Mobile - Android", "Desktop - Windows"
     userAgent: { type: String, default: '' },
     withinGeofence: { type: Boolean, default: true },
@@ -15,6 +16,7 @@ const captureSchema = new mongoose.Schema({
 
 const attendanceSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
     date: { type: String, required: true },       // "2025-01-15" (YYYY-MM-DD)
     clockIn: captureSchema,
     clockOut: captureSchema,

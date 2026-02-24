@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const assetSchema = new mongoose.Schema({
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
     name: { type: String, required: true },
     assetTag: { type: String, unique: true, sparse: true },
     category: {

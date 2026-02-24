@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const projectSchema = new mongoose.Schema({
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
     name: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
     client: { type: String, default: '' },

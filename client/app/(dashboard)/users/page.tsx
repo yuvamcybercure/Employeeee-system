@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import DashboardLayout from '../layout';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { UserDialog } from '@/components/UserDialog';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -75,7 +75,7 @@ export default function UsersPage() {
     );
 
     return (
-        <DashboardLayout allowedRoles={['admin', 'superadmin']}>
+        <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
             <motion.div
                 initial="hidden"
                 animate="visible"
@@ -234,6 +234,6 @@ export default function UsersPage() {
                     />
                 )}
             </AnimatePresence>
-        </DashboardLayout>
+        </ProtectedRoute>
     );
 }

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const suggestionSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
     title: { type: String, required: true },
     description: { type: String, required: true },
     category: {

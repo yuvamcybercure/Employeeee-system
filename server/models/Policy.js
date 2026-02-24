@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const policySchema = new mongoose.Schema({
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
     title: { type: String, required: true },
     category: {
         type: String,
