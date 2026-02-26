@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Building2, Globe, Palette, Loader2, CheckCircle2, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
+import { X, Save, Building2, Globe, Palette, Loader2, CheckCircle2, Upload, Trash2, Image as ImageIcon, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface OrgSettingsModalProps {

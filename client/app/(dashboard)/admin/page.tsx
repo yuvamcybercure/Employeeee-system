@@ -57,7 +57,7 @@ export default function AdminDashboard() {
     const fetchDashboardData = async () => {
         try {
             const { data: overview } = await api.get('/attendance/overview');
-            const { data: weekly } = await api.get('/attendance/weekly-summary');
+            const { data: weekly } = await api.get('/attendance/weekly');
             if (overview.success) setData(overview);
             if (weekly.success) setChartData(weekly.data);
         } catch (err) {
