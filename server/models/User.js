@@ -4,15 +4,15 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true },
-    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: function () { return this.role !== 'master-admin'; } },
     password: { type: String, required: true, select: false },
-    role: { type: String, enum: ['superadmin', 'admin', 'employee'], default: 'employee' },
+    role: { type: String, enum: ['master-admin', 'superadmin', 'admin', 'employee'], default: 'employee' },
     department: { type: String, default: '' },
     designation: { type: String, default: '' },
     employeeId: { type: String, unique: true, sparse: true },
     phone: { type: String, default: '' },
     profilePhoto: { type: String, default: '' },
-    plainPassword: { type: String }, // Store for Admin/Superadmin visibility
+    // SECURITY: plainPassword field has been permanently removed. Passwords are bcrypt-hashed only.
     joinDate: { type: Date, default: Date.now },
     isActive: { type: Boolean, default: true },
     managedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -45,20 +45,65 @@ const userSchema = new mongoose.Schema({
 
     // Overridden permissions for this specific user
     permissionOverrides: {
+        // Finance
+        canViewFinanceDashboard: { type: Boolean, default: null },
+        canManageExpenses: { type: Boolean, default: null },
+        canManageInvoices: { type: Boolean, default: null },
+        canConfigureRates: { type: Boolean, default: null },
+        canConfigureCompensation: { type: Boolean, default: null },
+
+        // Payroll
         canViewPayroll: { type: Boolean, default: null },
+        canGeneratePayroll: { type: Boolean, default: null },
+        canDisbursePayroll: { type: Boolean, default: null },
+
+        // Attendance & HR
+        canViewAttendance: { type: Boolean, default: null },
         canEditAttendance: { type: Boolean, default: null },
         canApproveLeave: { type: Boolean, default: null },
-        canViewReports: { type: Boolean, default: null },
-        canExportData: { type: Boolean, default: null },
-        canManageProjects: { type: Boolean, default: null },
-        canManagePolicies: { type: Boolean, default: null },
+        canConfigureGeofence: { type: Boolean, default: null },
+
+        // Assets
+        canViewAssets: { type: Boolean, default: null },
         canManageAssets: { type: Boolean, default: null },
+
+        // Project Management
+        canManageProjects: { type: Boolean, default: null },
+        canViewProjectStats: { type: Boolean, default: null },
+
+        // User Management
+        canViewEmployees: { type: Boolean, default: null },
+        canAddEmployee: { type: Boolean, default: null },
+        canEditEmployee: { type: Boolean, default: null },
+        canManagePermissions: { type: Boolean, default: null },
+
+        // Misc
+        canManagePolicies: { type: Boolean, default: null },
+        canSendBroadcast: { type: Boolean, default: null },
+        canViewSuggestions: { type: Boolean, default: null },
     },
     leaveEntitlements: {
         sick: { yearly: { type: Number, default: 12 }, monthly: { type: Number, default: 1 } },
         casual: { yearly: { type: Number, default: 12 }, monthly: { type: Number, default: 1 } },
         wfh: { yearly: { type: Number, default: 24 }, monthly: { type: Number, default: 2 } },
         unpaid: { yearly: { type: Number, default: 365 }, monthly: { type: Number, default: 31 } },
+    },
+    bankDetails: {
+        accountNo: { type: String, default: '' },
+        ifscCode: { type: String, default: '' },
+        bankName: { type: String, default: '' },
+        branch: { type: String, default: '' },
+        holderName: { type: String, default: '' },
+        address: { type: String, default: '' },
+    },
+    salaryStructure: {
+        baseSalary: { type: Number, default: 0 },
+        hourlyRate: { type: Number, default: 0 },
+        esi: { type: Number, default: 0 },
+        pf: { type: Number, default: 0 },
+        professionalTax: { type: Number, default: 0 },
+        tdsPercentage: { type: Number, default: 0 },
+        compensationType: { type: String, enum: ['hourly', 'monthly'], default: 'monthly' },
     },
     lastLogin: { type: Date },
 }, { timestamps: true });

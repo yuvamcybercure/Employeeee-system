@@ -8,8 +8,12 @@ exports.generateAttendancePDF = async (req, res) => {
     try {
         const { month, year } = req.query;
         const pad = String(month).padStart(2, '0');
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.status(400).json({ message: 'Must be in an organization context to generate reports' });
+        }
         const records = await Attendance.find({
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             date: { $gte: `${year}-${pad}-01`, $lte: `${year}-${pad}-31` }
         }).populate('userId', 'name employeeId department');
 
@@ -36,8 +40,12 @@ exports.generateAttendanceExcel = async (req, res) => {
     try {
         const { month, year } = req.query;
         const pad = String(month).padStart(2, '0');
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.status(400).json({ message: 'Must be in an organization context to generate reports' });
+        }
         const records = await Attendance.find({
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             date: { $gte: `${year}-${pad}-01`, $lte: `${year}-${pad}-31` }
         }).populate('userId', 'name employeeId department');
 

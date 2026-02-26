@@ -1,36 +1,49 @@
 const RolePermission = require('../models/RolePermission');
-const { logActivity } = require('../middleware/logger');
+const User = require('../models/User');
 
-// GET /api/permissions/:role
-exports.getPermissions = async (req, res) => {
+// Roles
+exports.getRolePermissions = async (req, res) => {
     try {
-        const rolePerms = await RolePermission.findOne({ role: req.params.role, organizationId: req.user.organizationId._id });
-        res.json({ success: true, permissions: rolePerms?.permissions || {} });
+        const roles = await RolePermission.find({ organizationId: req.user.organizationId });
+        res.json({ success: true, roles });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
-// PATCH /api/permissions/:role
-exports.updatePermissions = async (req, res) => {
+exports.updateRolePermissions = async (req, res) => {
     try {
-        const rolePerms = await RolePermission.findOneAndUpdate(
-            { role: req.params.role, organizationId: req.user.organizationId._id },
-            { permissions: req.body.permissions },
-            { upsert: true, new: true, runValidators: true },
+        const { role, permissions } = req.body;
+        const rp = await RolePermission.findOneAndUpdate(
+            { role, organizationId: req.user.organizationId },
+            { permissions },
+            { upsert: true, new: true }
         );
-        await logActivity(req.user._id, 'UPDATE_PERMISSIONS', 'permissions', { role: req.params.role, permissions: req.body.permissions }, req);
-        res.json({ success: true, rolePerms });
+        res.json({ success: true, rolePermission: rp });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
-// GET /api/permissions/all  - Get both admin and employee matrices
-exports.getAllPermissions = async (req, res) => {
+// User Overrides
+exports.getUserWithPermissions = async (req, res) => {
     try {
-        const data = await RolePermission.find({ organizationId: req.user.organizationId._id });
-        res.json({ success: true, data });
+        const user = await User.findById(req.params.id).select('name email role permissionOverrides');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json({ success: true, user });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+exports.updateUserPermissions = async (req, res) => {
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.params.id,
+            { permissionOverrides: req.body.permissions },
+            { new: true }
+        );
+        res.json({ success: true, user });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

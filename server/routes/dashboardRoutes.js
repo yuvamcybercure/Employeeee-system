@@ -10,13 +10,22 @@ router.use(protect);
 // GET /api/dashboard/employee-stats
 router.get('/employee-stats', async (req, res) => {
     try {
-        if (!req.user || !req.user.organizationId) {
+        if (!req.user || (!req.user.organizationId && req.user.role !== 'master-admin')) {
             console.error('Dashboard Stats Error: req.user or organizationId is missing');
             return res.status(401).json({ message: 'User or Organization data missing' });
         }
 
         const userId = req.user._id;
-        const orgId = req.user.organizationId._id;
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({
+                success: true,
+                projectStats: { active: 0, completed: 0, pending: 0, total: 0 },
+                birthdays: [],
+                holidays: []
+            });
+        }
 
         // 1. Project Stats
         let projectStats = { active: 0, completed: 0, pending: 0, total: 0 };

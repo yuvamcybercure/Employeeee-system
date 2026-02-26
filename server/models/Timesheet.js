@@ -29,5 +29,6 @@ const timesheetSchema = new mongoose.Schema({
 
 timesheetSchema.index({ userId: 1, date: 1 });
 timesheetSchema.index({ projectId: 1, date: 1 });
+timesheetSchema.index({ organizationId: 1, date: 1 }); // Fix #8: Compound index
 
 module.exports = mongoose.model('Timesheet', timesheetSchema);

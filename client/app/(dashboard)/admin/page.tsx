@@ -208,8 +208,8 @@ export default function AdminDashboard() {
                                             <p className="text-lg font-black tracking-widest tabular-nums">{conflict.ip}</p>
                                             <div className="flex -space-x-3 mt-4">
                                                 {conflict.users.map((u: any, j: number) => (
-                                                    <div key={j} className="w-10 h-10 rounded-2xl border-4 border-slate-900 bg-slate-800 overflow-hidden shadow-lg" title={u.userId.name}>
-                                                        <img src={u.userId.profilePhoto || `https://ui-avatars.com/api/?name=${u.userId.name}`} alt="" />
+                                                    <div key={j} className="w-10 h-10 rounded-2xl border-4 border-slate-900 bg-slate-800 overflow-hidden shadow-lg" title={u.userId?.name || 'Unknown'}>
+                                                        <img src={u.userId?.profilePhoto || `https://ui-avatars.com/api/?name=${u.userId?.name || 'U'}`} alt="" />
                                                     </div>
                                                 ))}
                                             </div>
@@ -266,11 +266,11 @@ export default function AdminDashboard() {
                                         <td className="px-10 py-6">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 overflow-hidden shadow-sm p-1">
-                                                    <img src={record.userId.profilePhoto || `https://ui-avatars.com/api/?name=${record.userId.name}`} alt="" className="w-full h-full object-cover rounded-xl" />
+                                                    <img src={record.userId?.profilePhoto || `https://ui-avatars.com/api/?name=${record.userId?.name || 'U'}`} alt="" className="w-full h-full object-cover rounded-xl" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-black text-slate-800 tracking-tight">{record.userId.name}</p>
-                                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{record.userId.department || 'General'}</p>
+                                                    <p className="text-sm font-black text-slate-800 tracking-tight">{record.userId?.name || 'Unknown Member'}</p>
+                                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{record.userId?.department || 'General'}</p>
                                                 </div>
                                             </div>
                                         </td>

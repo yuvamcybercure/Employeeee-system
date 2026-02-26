@@ -11,9 +11,14 @@ exports.applyLeave = async (req, res) => {
         const end = new Date(endDate);
         const totalDays = Math.ceil((end - start) / 86400000) + 1;
 
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.status(400).json({ message: 'Must be in an organization context to apply for leave' });
+        }
+
         const leave = await Leave.create({
             userId: req.user._id,
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             type,
             startDate: start,
             endDate: end,
@@ -27,10 +32,14 @@ exports.applyLeave = async (req, res) => {
     }
 };
 
-// GET /api/leaves  - Employee sees own leaves / Admin sees team leaves
 exports.getLeaves = async (req, res) => {
     try {
-        let filter = { organizationId: req.user.organizationId._id };
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, leaves: [] });
+        }
+
+        let filter = { organizationId: orgId };
         if (req.user.role === 'employee') {
             filter.userId = req.user._id;
         } else if (req.user.role === 'admin') {
@@ -126,7 +135,8 @@ exports.getLeaveBalance = async (req, res) => {
         let entitlements = user.leaveEntitlements;
 
         if (!entitlements || Object.keys(entitlements).length === 0) {
-            const org = await Organization.findById(req.user.organizationId._id);
+            const orgId = req.user.organizationId?._id || req.user.organizationId;
+            const org = orgId ? await Organization.findById(orgId) : null;
             entitlements = org?.settings?.defaultLeaveEntitlements || {
                 sick: { yearly: 12, monthly: 1 },
                 casual: { yearly: 12, monthly: 1 },
@@ -162,8 +172,12 @@ exports.getLeaveBalance = async (req, res) => {
 // GET /api/leaves/pending-count
 exports.getPendingCount = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, count: 0 });
+        }
         const count = await Leave.countDocuments({
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             status: 'pending'
         });
         res.json({ success: true, count });

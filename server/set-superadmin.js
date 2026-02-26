@@ -16,7 +16,7 @@ const setSuperadmin = async () => {
         user.name = 'Yuvam Superadmin';
         user.email = email;
         user.password = 'yuvam123';
-        user.plainPassword = 'yuvam123';
+        // SECURITY: plainPassword removed
         user.role = 'superadmin';
         user.isActive = true;
 

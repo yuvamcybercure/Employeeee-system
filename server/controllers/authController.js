@@ -1,11 +1,18 @@
+// SECURITY FIXES APPLIED:
+// - Fix #1: All plainPassword references removed
+// - Fix #2: Password reset now hashes password before storing
+// - Fix #4: Removed hardcoded Windows debug log path, replaced with Winston logger
+
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const RolePermission = require('../models/RolePermission');
 const PasswordResetRequest = require('../models/PasswordResetRequest');
 const { logActivity } = require('../middleware/logger');
+const logger = require('../config/logger');
 
 const mergePermissions = async (user) => {
-    if (user.role === 'superadmin') return {}; // frontend handles superadmin
+    if (user.role === 'superadmin') return {};
 
     const rolePerms = await RolePermission.findOne({
         role: user.role,
@@ -18,15 +25,15 @@ const mergePermissions = async (user) => {
     const merged = { ...basePermissions };
     Object.keys(overrides).forEach(key => {
         if (overrides[key] !== null) merged[key] = overrides[key];
-
     });
 
     return merged;
-
 };
 
 const signToken = (id) =>
     jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
+
+exports.signToken = signToken;
 
 const sendToken = (res, user, statusCode = 200) => {
     const token = signToken(user._id);
@@ -35,27 +42,45 @@ const sendToken = (res, user, statusCode = 200) => {
         httpOnly: true,
         secure: isProduction,
         sameSite: isProduction ? 'strict' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: 7 * 24 * 60 * 60 * 1000,
     });
     res.status(statusCode).json({ success: true, user: user.toSafeJSON ? user.toSafeJSON() : user });
 };
 
 // POST /api/auth/login
-exports.login = async (req, res) => {
+exports.login = async (req, res, next) => {
     try {
         const { email, password } = req.body;
-        if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
+
+        logger.info(`Login attempt for: ${email}`);
+
+        if (!email || !password) {
+            logger.warn('Login failed: Email or password missing');
+            return res.status(400).json({ message: 'Email and password required' });
+        }
 
         const user = await User.findOne({ email }).select('+password').populate('organizationId', 'name slug logo settings');
-        if (!user || !(await user.comparePassword(password))) {
+        if (!user) {
+            logger.warn(`Login failed: User not found for ${email}`);
             return res.status(401).json({ message: 'Invalid email or password' });
         }
-        if (!user.isActive) return res.status(403).json({ message: 'Account is deactivated' });
+
+        const isMatch = await user.comparePassword(password);
+
+        if (!isMatch) {
+            logger.warn(`Login failed: Password mismatch for ${email}`);
+            return res.status(401).json({ message: 'Invalid email or password' });
+        }
+
+        if (!user.isActive) {
+            logger.warn(`Login failed: Account deactivated for ${email}`);
+            return res.status(403).json({ message: 'Account is deactivated' });
+        }
 
         user.lastLogin = new Date();
         await user.save({ validateBeforeSave: false });
 
-        // Fetch and merge permissions
+        logger.info(`Login successful for: ${user.email}`);
         const permissions = await mergePermissions(user);
         await logActivity(user._id, 'LOGIN', 'auth', { email }, req);
 
@@ -72,7 +97,7 @@ exports.login = async (req, res) => {
         delete userObj.password;
         res.json({ success: true, user: userObj, permissions });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
@@ -84,70 +109,76 @@ exports.logout = async (req, res) => {
 };
 
 // GET /api/auth/me
-exports.getMe = async (req, res) => {
+exports.getMe = async (req, res, next) => {
     try {
         const permissions = await mergePermissions(req.user);
         res.json({ success: true, user: req.user, permissions });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
 // POST /api/auth/change-password
-exports.changePassword = async (req, res) => {
+exports.changePassword = async (req, res, next) => {
     try {
         const { currentPassword, newPassword } = req.body;
         const user = await User.findById(req.user._id).select('+password');
         if (!(await user.comparePassword(currentPassword)))
             return res.status(400).json({ message: 'Current password is incorrect' });
         user.password = newPassword;
-        user.plainPassword = newPassword;
+        // SECURITY: plainPassword sync removed
         await user.save();
         await logActivity(req.user._id, 'CHANGE_PASSWORD', 'auth', {}, req);
         res.json({ success: true, message: 'Password changed successfully' });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
 // POST /api/auth/request-reset (Public)
-exports.requestPasswordReset = async (req, res) => {
+exports.requestPasswordReset = async (req, res, next) => {
     try {
         const { email, newPassword } = req.body;
+        if (!email || !newPassword) return res.status(400).json({ message: 'Email and new password are required' });
+
         const user = await User.findOne({ email });
         if (!user) return res.status(404).json({ message: 'User with this email does not exist' });
 
-        // Check if there's already a pending request
         const existingRequest = await PasswordResetRequest.findOne({ userId: user._id, status: 'pending' });
         if (existingRequest) return res.status(400).json({ message: 'A reset request is already pending for this user' });
+
+        // SECURITY FIX #2: Hash the password BEFORE storing it in the reset request
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
 
         await PasswordResetRequest.create({
             userId: user._id,
             email,
-            newPassword // Store plain for admin to see or use (as requested)
+            newPassword: hashedPassword // Stored pre-hashed, never plaintext
         });
 
         await logActivity(user._id, 'RESET_REQUESTED', 'auth', { email }, req);
         res.json({ success: true, message: 'Password reset request submitted. Please wait for admin approval.' });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
 // GET /api/auth/reset-requests (Superadmin only)
-exports.getResetRequests = async (req, res) => {
+exports.getResetRequests = async (req, res, next) => {
     try {
-        const requests = await PasswordResetRequest.find({ status: 'pending' }).populate('userId', 'name email role');
+        const requests = await PasswordResetRequest.find({ status: 'pending' })
+            .populate('userId', 'name email role')
+            .select('-newPassword'); // Never expose hashed passwords in API responses
         res.json({ success: true, requests });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
 // POST /api/auth/process-reset/:id (Superadmin only)
-exports.processResetRequest = async (req, res) => {
+exports.processResetRequest = async (req, res, next) => {
     try {
-        const { status } = req.body; // 'approved' or 'rejected'
+        const { status } = req.body;
         if (!['approved', 'rejected'].includes(status)) return res.status(400).json({ message: 'Invalid status' });
 
         const resetReq = await PasswordResetRequest.findById(req.params.id);
@@ -158,9 +189,12 @@ exports.processResetRequest = async (req, res) => {
             const user = await User.findById(resetReq.userId);
             if (!user) return res.status(404).json({ message: 'User not found' });
 
-            user.password = resetReq.newPassword;
-            user.plainPassword = resetReq.newPassword;
-            await user.save();
+            // SECURITY FIX #2: Apply the already-hashed password directly.
+            // We must bypass the pre-save hook since password is already hashed.
+            await User.updateOne(
+                { _id: resetReq.userId },
+                { $set: { password: resetReq.newPassword } }
+            );
         }
 
         resetReq.status = status;
@@ -171,6 +205,6 @@ exports.processResetRequest = async (req, res) => {
         await logActivity(req.user._id, `RESET_${status.toUpperCase()}`, 'auth', { targetUser: resetReq.userId }, req);
         res.json({ success: true, message: `Request ${status} successfully` });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };

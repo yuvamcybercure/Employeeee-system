@@ -9,6 +9,18 @@ const organizationSchema = new mongoose.Schema({
         plan: { type: String, enum: ['free', 'pro', 'enterprise'], default: 'free' },
         expiresAt: { type: Date }
     },
+    address: { type: String, default: '' },
+    contact: {
+        email: { type: String, default: '' },
+        phone: { type: String, default: '' },
+        website: { type: String, default: '' }
+    },
+    taxInfo: {
+        gstin: { type: String, default: '' },
+        pan: { type: String, default: '' },
+        taxRate: { type: Number, default: 0 } // Default GST %
+    },
+    currency: { type: String, default: 'INR' },
     settings: {
         allowedDomains: [{ type: String }],
         branding: {

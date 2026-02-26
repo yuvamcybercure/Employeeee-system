@@ -2,22 +2,24 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
-const { requireRole } = require('../middleware/rbac');
+const { requirePermission } = require('../middleware/rbac');
+const { uploadProfile } = require('../config/cloudinary');
 
 router.use(protect);
 
-router.get('/', requireRole('superadmin', 'admin', 'employee'), userController.getAllUsers);
-router.get('/:id', userController.getUserById);
-router.post('/', requireRole('superadmin'), userController.createUser);
-router.patch('/:id', userController.updateUser);
-router.delete('/:id', requireRole('superadmin'), userController.deleteUser);
-router.patch('/:id/photo', userController.updateProfilePhoto);
-
-// Document Management
-router.post('/:id/documents', userController.uploadDocument);
-router.delete('/:id/documents/:docId', userController.deleteDocument);
-
 // Birthdays
 router.get('/birthdays/today', userController.getTodayBirthdays);
+
+// Profile
+router.get('/profile', userController.getProfile);
+router.put('/profile', uploadProfile.single('profilePhoto'), userController.updateProfile);
+router.put('/bank-details', userController.updateBankDetails);
+
+// Management
+router.get('/', requirePermission('canViewEmployees'), userController.getAllUsers);
+router.post('/', requirePermission('canAddEmployee'), userController.createUser);
+router.get('/:id', requirePermission('canViewEmployees'), userController.getUserById);
+router.put('/:id', requirePermission('canEditEmployee'), userController.updateUser);
+router.delete('/:id', requirePermission('canEditEmployee'), userController.deleteUser);
 
 module.exports = router;

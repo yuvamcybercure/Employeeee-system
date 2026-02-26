@@ -14,5 +14,6 @@ const activityLogSchema = new mongoose.Schema({
 
 activityLogSchema.index({ userId: 1, createdAt: -1 });
 activityLogSchema.index({ module: 1, createdAt: -1 });
+activityLogSchema.index({ organizationId: 1, createdAt: -1 }); // Fix #8: Compound index
 
 module.exports = mongoose.model('ActivityLog', activityLogSchema);

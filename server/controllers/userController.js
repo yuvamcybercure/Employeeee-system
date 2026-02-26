@@ -1,15 +1,62 @@
 const User = require('../models/User');
 const { logActivity } = require('../middleware/logger');
 
-// GET /api/users  (superadmin/admin)
+const { uploadBase64 } = require('../config/cloudinary');
+
+// GET /api/users/profile
+exports.getProfile = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select('-password').populate('organizationId', 'name logo');
+        res.json({ success: true, user });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// PUT /api/users/profile
+exports.updateProfile = async (req, res) => {
+    try {
+        const allowedFields = ['phone', 'address', 'fatherName', 'gender', 'dob', 'nationality', 'religion', 'maritalStatus', 'emergencyContact'];
+        const updates = {};
+        allowedFields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
+
+        // Handle profile photo from either upload or base64
+        if (req.file) {
+            const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+            updates.profilePhoto = `${baseUrl}/public/uploads/profiles/${req.file.filename}`;
+        } else if (req.body.profilePhoto && req.body.profilePhoto.startsWith('data:image')) {
+            const result = await uploadBase64(req.body.profilePhoto, 'profiles');
+            updates.profilePhoto = result.url;
+        }
+
+        const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select('-password');
+        res.json({ success: true, user });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// PUT /api/users/bank-details
+exports.updateBankDetails = async (req, res) => {
+    try {
+        const user = await User.findByIdAndUpdate(req.user._id, { bankDetails: req.body }, { new: true }).select('-password');
+        res.json({ success: true, user });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// GET /api/users  (superadmin/admin/master-admin)
 exports.getAllUsers = async (req, res) => {
     try {
-        const filter = { organizationId: req.user.organizationId._id };
-        // Admins might be restricted to their managed users depending on policy, 
-        // but for collaboration, we likely want a broader reach or a specific toggle.
-        // For now, let's allow everyone to see organization members if they have access.
-        // If we want restriction: if (req.user.role === 'admin' && someCondition) filter.managedBy = req.user._id;
-        const selectFields = ['superadmin', 'admin'].includes(req.user.role) ? '' : '-password -plainPassword';
+        let filter = { organizationId: req.user.organizationId?._id || req.user.organizationId };
+
+        // Master admin can see any organization's users if requested via query
+        if (req.user.role === 'master-admin' && req.query.organizationId) {
+            filter.organizationId = req.query.organizationId;
+        }
+
+        const selectFields = ['superadmin', 'admin', 'master-admin'].includes(req.user.role) ? '-password' : '-password';
         const users = await User.find(filter).select(selectFields).populate('managedBy', 'name email');
         res.json({ success: true, users });
     } catch (err) {
@@ -20,8 +67,12 @@ exports.getAllUsers = async (req, res) => {
 // GET /api/users/:id
 exports.getUserById = async (req, res) => {
     try {
-        const selectFields = ['superadmin', 'admin'].includes(req.user.role) ? '' : '-password -plainPassword';
-        const user = await User.findOne({ _id: req.params.id, organizationId: req.user.organizationId._id }).select(selectFields).populate('managedBy', 'name email');
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        const query = { _id: req.params.id };
+        if (req.user.role !== 'master-admin') query.organizationId = orgId;
+
+        const selectFields = '-password';
+        const user = await User.findOne(query).select(selectFields).populate('managedBy', 'name email');
         if (!user) return res.status(404).json({ message: 'User not found' });
         res.json({ success: true, user });
     } catch (err) {
@@ -33,13 +84,14 @@ exports.getUserById = async (req, res) => {
 exports.createUser = async (req, res) => {
     try {
         const { name, email, password, role, department, designation, employeeId, phone, managedBy, leaveEntitlements } = req.body;
-        const existing = await User.findOne({ email }); // Email is global for now
+        const existing = await User.findOne({ email });
         if (existing) return res.status(400).json({ message: 'Email already in use' });
 
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const user = await User.create({
-            name, email, password, plainPassword: password, role, department, designation,
+            name, email, password, role, department, designation,
             employeeId: employeeId || `EMP${Date.now()}`, phone, managedBy, leaveEntitlements,
-            organizationId: req.user.organizationId._id
+            organizationId: orgId
         });
         await logActivity(req.user._id, 'CREATE_USER', 'users', { name, email, role }, req, user._id, 'User');
         res.status(201).json({ success: true, user: user.toSafeJSON() });
@@ -51,6 +103,7 @@ exports.createUser = async (req, res) => {
 // PATCH /api/users/:id
 exports.updateUser = async (req, res) => {
     try {
+        const isSuperAdmin = req.user.role === 'superadmin' || req.user.role === 'master-admin';
         const isAdmin = req.user.role === 'admin';
         const isSelf = String(req.user._id) === String(req.params.id);
 
@@ -76,29 +129,25 @@ exports.updateUser = async (req, res) => {
             if (req.body[f] !== undefined) updates[f] = req.body[f];
         });
 
-        // If password is being updated, sync plainPassword
-        if (updates.password) {
-            updates.plainPassword = updates.password;
-        }
+        // SECURITY: plainPassword sync removed — passwords are bcrypt-hashed only via pre-save hook
 
-        // Security Barriers for Admin
         if (isAdmin && !isSuperAdmin) {
-            // Admin cannot update themselves (to prevent self-privilege escalation)
             if (isSelf) {
                 const sensitiveFields = ['role', 'permissionOverrides', 'isActive'];
                 sensitiveFields.forEach(f => delete updates[f]);
             }
-
-            // Admin cannot create/promote to Superadmin
             if (updates.role === 'superadmin') {
                 delete updates.role;
             }
         }
 
-        const user = await User.findOne({ _id: req.params.id, organizationId: req.user.organizationId._id });
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        const query = { _id: req.params.id };
+        if (req.user.role !== 'master-admin') query.organizationId = orgId;
+
+        const user = await User.findOne(query);
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        // Update fields manually
         Object.keys(updates).forEach(key => {
             user[key] = updates[key];
         });
@@ -115,12 +164,13 @@ exports.updateUser = async (req, res) => {
 // DELETE /api/users/:id  (superadmin can hard delete, admin soft deletes)
 exports.deleteUser = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         let user;
         if (req.user.role === 'superadmin') {
-            user = await User.findOneAndDelete({ _id: req.params.id, organizationId: req.user.organizationId._id });
+            user = await User.findOneAndDelete({ _id: req.params.id, organizationId: orgId });
             if (user) await logActivity(req.user._id, 'DELETE_USER', 'users', { userId: req.params.id }, req, req.params.id, 'User');
         } else {
-            user = await User.findOneAndUpdate({ _id: req.params.id, organizationId: req.user.organizationId._id }, { isActive: false }, { new: true });
+            user = await User.findOneAndUpdate({ _id: req.params.id, organizationId: orgId }, { isActive: false }, { new: true });
             if (user) await logActivity(req.user._id, 'DEACTIVATE_USER', 'users', { userId: req.params.id }, req, user._id, 'User');
         }
 
@@ -134,8 +184,9 @@ exports.deleteUser = async (req, res) => {
 // POST /api/users/:id/documents
 exports.uploadDocument = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const { type, name, url, note } = req.body;
-        const user = await User.findOne({ _id: req.params.id, organizationId: req.user.organizationId._id });
+        const user = await User.findOne({ _id: req.params.id, organizationId: orgId });
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         // Check if a document of this type already exists to increment version
@@ -164,7 +215,8 @@ exports.uploadDocument = async (req, res) => {
 // DELETE /api/users/:id/documents/:docId
 exports.deleteDocument = async (req, res) => {
     try {
-        const user = await User.findOne({ _id: req.params.id, organizationId: req.user.organizationId._id });
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        const user = await User.findOne({ _id: req.params.id, organizationId: orgId });
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         user.documents = user.documents.filter(d => String(d._id) !== String(req.params.docId));
@@ -179,9 +231,10 @@ exports.deleteDocument = async (req, res) => {
 // PATCH /api/users/:id/photo
 exports.updateProfilePhoto = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const { photo } = req.body;
         const user = await User.findOneAndUpdate(
-            { _id: req.params.id, organizationId: req.user.organizationId._id },
+            { _id: req.params.id, organizationId: orgId },
             { profilePhoto: photo },
             { new: true }
         ).select('-password');
@@ -200,8 +253,13 @@ exports.getTodayBirthdays = async (req, res) => {
         const month = today.getMonth() + 1;
         const day = today.getDate();
 
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, birthdays: [] });
+        }
+
         const birthdays = await User.find({
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             isActive: true,
             $expr: {
                 $and: [

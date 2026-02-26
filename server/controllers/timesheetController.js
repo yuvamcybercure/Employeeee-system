@@ -4,9 +4,13 @@ const { logActivity } = require('../middleware/logger');
 // GET /api/timesheets
 exports.getTimesheets = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, timesheets: [] });
+        }
         const { date, month, year, search, projectId, status, userId: targetUserId } = req.query;
         let filter = {
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
         };
 
         // Role-based visibility logic
@@ -61,13 +65,17 @@ exports.getTimesheets = async (req, res) => {
 // GET /api/timesheets/stats
 exports.getTimesheetStats = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, todayTotalMs: 0, monthTotalMs: 0, runningTask: null });
+        }
         const { userId: targetUserId } = req.query;
         const now = new Date();
         const todayStr = now.toISOString().split('T')[0];
         const monthStr = todayStr.substring(0, 7); // YYYY-MM
 
         let filter = {
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
         };
 
         if (req.user.role === 'admin' || req.user.role === 'superadmin') {
@@ -106,21 +114,15 @@ exports.getTimesheetStats = async (req, res) => {
 // POST /api/timesheets
 exports.createTimesheet = async (req, res) => {
     try {
-        const today = new Date().toISOString().split('T')[0];
-        const monthStart = `${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}`;
-
-        const filter = {
-            organizationId: req.user.organizationId._id,
-            $or: [
-                { userId: req.user._id },
-                { collaborators: req.user._id }
-            ]
-        };
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.status(400).json({ message: 'Must be in an organization context to create timesheet' });
+        }
 
         const ts = await Timesheet.create({
             ...req.body,
             userId: req.user._id,
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             status: 'pending',
             logs: [{ action: 'CREATED', note: `Task created by ${req.user.name}` }]
         });
@@ -133,10 +135,11 @@ exports.createTimesheet = async (req, res) => {
 // PATCH /api/timesheets/:id/timer
 exports.toggleTimer = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const { action } = req.body; // 'start' or 'stop'
         const ts = await Timesheet.findOne({
             _id: req.params.id,
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             $or: [
                 { userId: req.user._id },
                 { collaborators: req.user._id }
@@ -182,8 +185,9 @@ exports.toggleTimer = async (req, res) => {
 // PATCH /api/timesheets/:id
 exports.updateTimesheet = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const ts = await Timesheet.findOneAndUpdate(
-            { _id: req.params.id, userId: req.user._id, organizationId: req.user.organizationId._id, status: 'draft' },
+            { _id: req.params.id, userId: req.user._id, organizationId: orgId, status: 'draft' },
             req.body,
             { new: true },
         );
@@ -197,8 +201,9 @@ exports.updateTimesheet = async (req, res) => {
 // PATCH /api/timesheets/:id/submit
 exports.submitTimesheet = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const ts = await Timesheet.findOneAndUpdate(
-            { _id: req.params.id, userId: req.user._id, organizationId: req.user.organizationId._id, status: 'draft' },
+            { _id: req.params.id, userId: req.user._id, organizationId: orgId, status: 'draft' },
             { status: 'submitted' },
             { new: true },
         );
@@ -213,9 +218,10 @@ exports.submitTimesheet = async (req, res) => {
 // PATCH /api/timesheets/:id/review
 exports.reviewTimesheet = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const { status, reviewNote } = req.body;
         const ts = await Timesheet.findOneAndUpdate(
-            { _id: req.params.id, organizationId: req.user.organizationId._id },
+            { _id: req.params.id, organizationId: orgId },
             { status, reviewNote, reviewedBy: req.user._id },
             { new: true },
         );
@@ -230,7 +236,8 @@ exports.reviewTimesheet = async (req, res) => {
 // DELETE /api/timesheets/:id
 exports.deleteTimesheet = async (req, res) => {
     try {
-        await Timesheet.findOneAndDelete({ _id: req.params.id, userId: req.user._id, organizationId: req.user.organizationId._id, status: 'draft' });
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        await Timesheet.findOneAndDelete({ _id: req.params.id, userId: req.user._id, organizationId: orgId, status: 'draft' });
         res.json({ success: true, message: 'Timesheet deleted' });
     } catch (err) {
         res.status(500).json({ message: err.message });

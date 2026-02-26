@@ -1,3 +1,8 @@
+// SECURITY & PERFORMANCE FIXES APPLIED:
+// Fix #3: All catch blocks use next(err) for centralized error handling
+// Fix #9: getHistory now supports pagination (page, limit query params)
+// Fix #10: GeofenceSettings cached per org with 5-minute TTL
+
 const Attendance = require('../models/Attendance');
 const GeofenceSettings = require('../models/GeofenceSettings');
 const User = require('../models/User');
@@ -5,10 +10,14 @@ const Leave = require('../models/Leave');
 const Timesheet = require('../models/Timesheet');
 const { uploadBase64 } = require('../config/cloudinary');
 const { logActivity } = require('../middleware/logger');
+const NodeCache = require('node-cache');
 
-// Calculate distance in meters between two lat/lng points (Haversine)
+// Fix #10: Geofence cache with 5-minute TTL
+const geofenceCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
+
+// Haversine distance calculation
 const getDistance = (lat1, lng1, lat2, lng2) => {
-    const R = 6371000; // Earth's radius in meters
+    const R = 6371000;
     const toRad = (val) => (val * Math.PI) / 180;
     const dLat = toRad(lat2 - lat1);
     const dLng = toRad(lng2 - lng1);
@@ -29,10 +38,16 @@ const buildCapture = async (data, req) => {
 
     const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || '';
 
-    // Check geofence
+    // Check geofence — Fix #10: using cache
     let withinGeofence = true;
-    if (lat && lng && req.user?.organizationId?._id) {
-        const geofence = await GeofenceSettings.findOne({ organizationId: req.user.organizationId._id, isActive: true });
+    const orgId = req.user.organizationId?._id || req.user.organizationId;
+    if (lat && lng && orgId) {
+        const cacheKey = `geofence_${orgId}`;
+        let geofence = geofenceCache.get(cacheKey);
+        if (geofence === undefined) {
+            geofence = await GeofenceSettings.findOne({ organizationId: orgId, isActive: true });
+            geofenceCache.set(cacheKey, geofence || null); // Cache null result too
+        }
         if (geofence) {
             const dist = getDistance(parseFloat(lat), parseFloat(lng), geofence.lat, geofence.lng);
             withinGeofence = dist <= geofence.radiusMeters;
@@ -55,27 +70,30 @@ const buildCapture = async (data, req) => {
 };
 
 // POST /api/attendance/clock-in
-exports.clockIn = async (req, res) => {
+exports.clockIn = async (req, res, next) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.status(400).json({ message: 'Must be in an organization context to clock in' });
+        }
         const today = new Date().toISOString().split('T')[0];
-        const existing = await Attendance.findOne({ userId: req.user._id, date: today, organizationId: req.user.organizationId._id });
+        const existing = await Attendance.findOne({ userId: req.user._id, date: today, organizationId: orgId });
         if (existing?.clockIn?.time) return res.status(400).json({ message: 'Already clocked in today' });
 
         const capture = await buildCapture(req.body, req);
 
-        // Determine status dynamically from organization settings
         const orgSettings = req.user.organizationId?.settings?.attendanceSettings;
         const officeStartTimeStr = orgSettings?.startTime || '09:00';
         const [startHours, startMinutes] = officeStartTimeStr.split(':').map(Number);
 
         const now = new Date();
         const lateThreshold = new Date();
-        lateThreshold.setHours(startHours, startMinutes + 15, 0, 0); // Grace period: 15 mins after startTime
+        lateThreshold.setHours(startHours, startMinutes + 15, 0, 0);
 
         let status = capture.withinGeofence ? (now > lateThreshold ? 'late' : 'present') : 'pending';
 
         const attendance = await Attendance.findOneAndUpdate(
-            { userId: req.user._id, date: today, organizationId: req.user.organizationId._id },
+            { userId: req.user._id, date: today, organizationId: orgId },
             { $set: { clockIn: capture, status } },
             { upsert: true, new: true },
         );
@@ -83,15 +101,16 @@ exports.clockIn = async (req, res) => {
         await logActivity(req.user._id, 'CLOCK_IN', 'attendance', { date: today, status }, req, attendance._id, 'Attendance');
         res.json({ success: true, attendance, withinGeofence: capture.withinGeofence });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
 // POST /api/attendance/clock-out
-exports.clockOut = async (req, res) => {
+exports.clockOut = async (req, res, next) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const today = new Date().toISOString().split('T')[0];
-        const attendance = await Attendance.findOne({ userId: req.user._id, date: today, organizationId: req.user.organizationId._id });
+        const attendance = await Attendance.findOne({ userId: req.user._id, date: today, organizationId: orgId });
 
         if (!attendance || !attendance.clockIn || !attendance.clockIn.time) {
             return res.status(400).json({ message: 'You have not clocked in today' });
@@ -103,7 +122,6 @@ exports.clockOut = async (req, res) => {
 
         const capture = await buildCapture(req.body, req);
 
-        // Calculate total hours robustly
         const clockInTime = new Date(attendance.clockIn.time);
         const clockOutTime = new Date();
         const totalHours = Math.max(0, (clockOutTime - clockInTime) / 3600000);
@@ -117,38 +135,41 @@ exports.clockOut = async (req, res) => {
         await logActivity(req.user._id, 'CLOCK_OUT', 'attendance', { date: today, totalHours: parseFloat(totalHours.toFixed(2)) }, req, attendance._id, 'Attendance');
         res.json({ success: true, attendance: updated });
     } catch (err) {
-        console.error('Clock-out Error:', err);
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
 // GET /api/attendance/today
-exports.getTodayAttendance = async (req, res) => {
+exports.getTodayAttendance = async (req, res, next) => {
     try {
         const today = new Date().toISOString().split('T')[0];
         const attendance = await Attendance.findOne({ userId: req.user._id, date: today });
         res.json({ success: true, attendance });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
-// GET /api/attendance/history?userId=&month=&year=
-exports.getHistory = async (req, res) => {
+// GET /api/attendance/history?userId=&month=&year=&page=&limit=
+exports.getHistory = async (req, res, next) => {
     try {
-        if (!req.user || !req.user.organizationId) {
+        if (!req.user || (!req.user.organizationId && req.user.role !== 'master-admin')) {
             return res.status(401).json({ message: 'User or Organization data missing' });
         }
 
         const userId = req.query.userId || (req.user.role === 'employee' ? req.user._id : null);
 
-        // If not admin/superadmin, can only view own history
         if (userId && String(userId) !== String(req.user._id) && !['admin', 'superadmin'].includes(req.user.role)) {
             return res.status(403).json({ message: 'Access denied' });
         }
 
-        const { month, year } = req.query;
-        let query = { organizationId: req.user.organizationId._id };
+        const { month, year, page = 1, limit = 50 } = req.query;
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+        const skip = (pageNum - 1) * limitNum;
+
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        let query = { organizationId: orgId };
 
         if (userId) query.userId = userId;
 
@@ -157,9 +178,14 @@ exports.getHistory = async (req, res) => {
             query.date = { $regex: `^${year}-${pad}-` };
         }
 
-        let records = await Attendance.find(query)
-            .populate('userId', 'name employeeId profilePhoto')
-            .sort({ date: -1 });
+        const [records, total] = await Promise.all([
+            Attendance.find(query)
+                .populate('userId', 'name employeeId profilePhoto')
+                .sort({ date: -1 })
+                .skip(skip)
+                .limit(limitNum),
+            Attendance.countDocuments(query)
+        ]);
 
         // Safely merge timesheet hours
         let enrichedRecords = [];
@@ -206,19 +232,24 @@ exports.getHistory = async (req, res) => {
             }
         } catch (enrichErr) {
             console.error('Attendance Enrichment Error:', enrichErr);
-            // Fallback to basic records if enrichment fails
             enrichedRecords = records.map(r => r.toObject());
         }
 
-        res.json({ success: true, records: enrichedRecords });
+        // Fix #9: Return pagination metadata
+        res.json({
+            success: true,
+            records: enrichedRecords,
+            total,
+            page: pageNum,
+            totalPages: Math.ceil(total / limitNum)
+        });
     } catch (err) {
-        console.error('Get History Error:', err);
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
 // GET /api/attendance/overview?month=&year=&userId=
-exports.getOverview = async (req, res) => {
+exports.getOverview = async (req, res, next) => {
     try {
         const { month, year, userId } = req.query;
         const now = new Date();
@@ -228,13 +259,22 @@ exports.getOverview = async (req, res) => {
         const datePrefix = `${targetYear}-${pad}-`;
 
         const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
 
-        if (!req.user?.organizationId?._id) {
-            console.error('Missing organizationId for user:', req.user?._id);
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({
+                success: true,
+                records: [],
+                stats: { present: 0, absent: 0, late: 0, leaves: 0, totalDays: 30 },
+                ipConflicts: []
+            });
+        }
+
+        if (!orgId) {
             return res.status(400).json({ message: 'Organization data not found for your account' });
         }
 
-        let query = { date: { $regex: `^${datePrefix}` }, organizationId: req.user.organizationId._id };
+        let query = { date: { $regex: `^${datePrefix}` }, organizationId: orgId };
 
         if (isAdmin) {
             if (userId) query.userId = userId;
@@ -244,10 +284,8 @@ exports.getOverview = async (req, res) => {
 
         const records = await Attendance.find(query).populate('userId', 'name department profilePhoto employeeId');
 
-        // Total employees count (for Admin only, unless filtering by one user)
-        const totalEmployees = (isAdmin && !userId) ? await User.countDocuments({ role: 'employee', isActive: true, organizationId: req.user.organizationId._id }) : 1;
+        const totalEmployees = (isAdmin && !userId) ? await User.countDocuments({ role: 'employee', isActive: true, organizationId: orgId }) : 1;
 
-        // Stats calculation
         let presentCount = 0;
         let lateCount = 0;
 
@@ -255,19 +293,16 @@ exports.getOverview = async (req, res) => {
             const presentSet = new Set();
             lateCount = records.filter(r => r.status === 'late').length;
             records.forEach(r => {
-                // Safeguard against null userId
                 if (['present', 'late'].includes(r.status) && r.userId?._id) {
                     presentSet.add(String(r.userId._id));
                 }
             });
             presentCount = presentSet.size;
         } else {
-            // Personal stats for employee OR specific user selected by admin
             presentCount = records.filter(r => ['present', 'late'].includes(r.status)).length;
             lateCount = records.filter(r => r.status === 'late').length;
         }
 
-        // Leave days in this month
         const startOfMonth = new Date(targetYear, targetMonth - 1, 1);
         const endOfMonth = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
@@ -288,7 +323,6 @@ exports.getOverview = async (req, res) => {
         const leaves = await Leave.find(leaveQuery);
         const totalLeavesCount = leaves.reduce((acc, curr) => acc + (curr.totalDays || 0), 0);
 
-        // Days in month
         const totalDays = new Date(targetYear, targetMonth, 0).getDate();
 
         // Detect IP conflicts (Today only - Admin only)
@@ -310,7 +344,7 @@ exports.getOverview = async (req, res) => {
 
         res.json({
             success: true,
-            records: isAdmin ? records : [], // Employees only need stats, history comes from getHistory
+            records: isAdmin ? records : [],
             stats: {
                 present: presentCount,
                 absent: Math.max(0, (isAdmin ? totalEmployees : totalDays) - presentCount - (isAdmin ? 0 : totalLeavesCount)),
@@ -321,13 +355,12 @@ exports.getOverview = async (req, res) => {
             ipConflicts
         });
     } catch (err) {
-        console.error('Get Overview Error:', err);
-        res.status(500).json({ message: 'Internal Server Error', error: err.message });
+        next(err);
     }
 };
 
-// GET /api/attendance/weekly-summary  (chart data)
-exports.getWeeklySummary = async (req, res) => {
+// GET /api/attendance/weekly-summary
+exports.getWeeklySummary = async (req, res, next) => {
     try {
         const days = [];
         for (let i = 6; i >= 0; i--) {
@@ -336,23 +369,28 @@ exports.getWeeklySummary = async (req, res) => {
             days.push(d.toISOString().split('T')[0]);
         }
 
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, data: days.map(date => ({ date, total: 0, present: 0, percentage: 0 })) });
+        }
         const results = await Promise.all(days.map(async (date) => {
-            const total = await Attendance.countDocuments({ date, organizationId: req.user.organizationId._id });
-            const present = await Attendance.countDocuments({ date, status: { $in: ['present', 'late'] }, organizationId: req.user.organizationId._id });
+            const total = await Attendance.countDocuments({ date, organizationId: orgId });
+            const present = await Attendance.countDocuments({ date, status: { $in: ['present', 'late'] }, organizationId: orgId });
             return { date, total, present, percentage: total > 0 ? Math.round((present / total) * 100) : 0 };
         }));
 
         res.json({ success: true, data: results });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
-// PATCH /api/attendance/:id/approve  (Admin approves pending)
-exports.approveAttendance = async (req, res) => {
+// PATCH /api/attendance/:id/approve
+exports.approveAttendance = async (req, res, next) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const att = await Attendance.findOneAndUpdate(
-            { _id: req.params.id, organizationId: req.user.organizationId._id },
+            { _id: req.params.id, organizationId: orgId },
             { status: 'present' },
             { new: true }
         );
@@ -360,6 +398,6 @@ exports.approveAttendance = async (req, res) => {
         await logActivity(req.user._id, 'APPROVE_ATTENDANCE', 'attendance', {}, req, att._id, 'Attendance');
         res.json({ success: true, attendance: att });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };

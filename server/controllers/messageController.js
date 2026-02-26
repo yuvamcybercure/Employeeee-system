@@ -9,8 +9,13 @@ exports.getMessages = async (req, res) => {
         const { receiverId } = req.params;
         const currentUserId = req.user._id;
 
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, messages: [] });
+        }
+
         const messages = await Message.find({
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             $or: [
                 { senderId: currentUserId, receiverId },
                 { senderId: receiverId, receiverId: currentUserId }
@@ -36,9 +41,13 @@ exports.getMessages = async (req, res) => {
 // GET /api/messages/groups/:groupId
 exports.getGroupMessages = async (req, res) => {
     try {
-        const currentUserId = req.user._id;
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, messages: [] });
+        }
+
         const messages = await Message.find({
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             groupId: req.params.groupId,
             deletedFor: { $ne: currentUserId }
         }).sort({ createdAt: 1 });
@@ -60,9 +69,14 @@ exports.getGroupMessages = async (req, res) => {
 exports.sendMessage = async (req, res) => {
     try {
         const { receiverId, groupId, content, type } = req.body;
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.status(400).json({ message: 'Must be in an organization context to send messages' });
+        }
+
         const message = await Message.create({
             senderId: req.user._id,
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             receiverId,
             groupId,
             content,
@@ -80,8 +94,13 @@ exports.markAsRead = async (req, res) => {
         const { senderId, groupId } = req.body;
         const currentUserId = req.user._id;
 
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true });
+        }
+
         let query = {
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             'readBy.userId': { $ne: currentUserId }
         };
 
@@ -139,7 +158,7 @@ exports.createGroup = async (req, res) => {
             name,
             description,
             avatar,
-            organizationId: req.user.organizationId._id,
+            organizationId: req.user.organizationId?._id || req.user.organizationId,
             adminId: req.user._id,
             members: [...new Set([...members, req.user._id])]
         });
@@ -152,7 +171,10 @@ exports.createGroup = async (req, res) => {
 // GET /api/messages/conversations
 exports.getConversations = async (req, res) => {
     try {
-        const orgId = req.user.organizationId._id;
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, conversations: [] });
+        }
         const currentUserId = req.user._id;
 
         // 1. Get all users
@@ -236,7 +258,10 @@ exports.getConversations = async (req, res) => {
 // GET /api/messages/unread-count
 exports.getUnreadCount = async (req, res) => {
     try {
-        const orgId = req.user.organizationId._id;
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, count: 0 });
+        }
         const currentUserId = req.user._id;
 
         // 1. Unread DM counts

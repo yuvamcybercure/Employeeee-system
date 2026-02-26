@@ -4,7 +4,11 @@ const { logActivity } = require('../middleware/logger');
 // GET /api/projects
 exports.getProjects = async (req, res) => {
     try {
-        let filter = { organizationId: req.user.organizationId._id };
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.json({ success: true, projects: [] });
+        }
+        let filter = { organizationId: orgId };
         if (req.user.role === 'employee') {
             filter.$or = [{ managerId: req.user._id }, { teamMembers: req.user._id }];
         }
@@ -21,7 +25,8 @@ exports.getProjects = async (req, res) => {
 // GET /api/projects/:id
 exports.getProjectById = async (req, res) => {
     try {
-        const project = await Project.findOne({ _id: req.params.id, organizationId: req.user.organizationId._id })
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        const project = await Project.findOne({ _id: req.params.id, organizationId: orgId })
             .populate('managerId', 'name profilePhoto email')
             .populate('teamMembers', 'name profilePhoto department email')
             .populate('tasks.assignedTo', 'name profilePhoto email')
@@ -37,9 +42,13 @@ exports.getProjectById = async (req, res) => {
 // POST /api/projects
 exports.createProject = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role === 'master-admin') {
+            return res.status(400).json({ message: 'Must be in an organization context to create project' });
+        }
         const project = await Project.create({
             ...req.body,
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             managerId: req.body.managerId || req.user._id
         });
         await logActivity(req.user._id, 'CREATE_PROJECT', 'projects', { name: project.name }, req, project._id, 'Project');
@@ -52,8 +61,9 @@ exports.createProject = async (req, res) => {
 // PATCH /api/projects/:id
 exports.updateProject = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const project = await Project.findOneAndUpdate(
-            { _id: req.params.id, organizationId: req.user.organizationId._id },
+            { _id: req.params.id, organizationId: orgId },
             req.body,
             { new: true, runValidators: true }
         );
@@ -79,8 +89,9 @@ exports.deleteProject = async (req, res) => {
 // POST /api/projects/:id/tasks
 exports.addTask = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const project = await Project.findOneAndUpdate(
-            { _id: req.params.id, organizationId: req.user.organizationId._id },
+            { _id: req.params.id, organizationId: orgId },
             { $push: { tasks: { ...req.body, createdBy: req.user._id } } },
             { new: true },
         ).populate('tasks.assignedTo tasks.createdBy');
@@ -93,10 +104,11 @@ exports.addTask = async (req, res) => {
 // PATCH /api/projects/:id/tasks/:taskId
 exports.updateTask = async (req, res) => {
     try {
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
         const updateFields = {};
         Object.keys(req.body).forEach(k => { updateFields[`tasks.$.${k}`] = req.body[k]; });
         const project = await Project.findOneAndUpdate(
-            { _id: req.params.id, organizationId: req.user.organizationId._id, 'tasks._id': req.params.taskId },
+            { _id: req.params.id, organizationId: orgId, 'tasks._id': req.params.taskId },
             { $set: updateFields },
             { new: true },
         );
@@ -112,7 +124,7 @@ exports.addComment = async (req, res) => {
         const project = await Project.findOneAndUpdate(
             {
                 _id: req.params.id,
-                organizationId: req.user.organizationId._id,
+                organizationId: req.user.organizationId?._id || req.user.organizationId,
                 'tasks._id': req.params.taskId
             },
             {

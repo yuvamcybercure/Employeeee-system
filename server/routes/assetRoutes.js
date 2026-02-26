@@ -2,20 +2,19 @@ const express = require('express');
 const router = express.Router();
 const assetController = require('../controllers/assetController');
 const { protect } = require('../middleware/auth');
-const { requireRole } = require('../middleware/rbac');
+const { requirePermission } = require('../middleware/rbac');
 
 router.use(protect);
 
-// Asset Inventory
-router.get('/', assetController.getAssets);
-router.post('/', requireRole('superadmin', 'admin'), assetController.createAsset);
-router.patch('/:id/assign', requireRole('superadmin', 'admin'), assetController.assignAsset);
-router.patch('/:id/revoke', requireRole('superadmin', 'admin'), assetController.revokeAsset);
-router.delete('/:id', requireRole('superadmin', 'admin'), assetController.deleteAsset);
+router.get('/', requirePermission('canViewAssets'), assetController.getAssets);
+router.post('/', requirePermission('canManageAssets'), assetController.createAsset);
+router.patch('/:id/assign', requirePermission('canManageAssets'), assetController.assignAsset);
+router.patch('/:id/revoke', requirePermission('canManageAssets'), assetController.revokeAsset);
+router.delete('/:id', requirePermission('canManageAssets'), assetController.deleteAsset);
 
-// Asset Issues
+// Issues
+router.get('/issues', requirePermission('canViewAssets'), assetController.getIssues);
 router.post('/issues', assetController.reportIssue);
-router.get('/issues', assetController.getIssues);
-router.patch('/issues/:id', requireRole('superadmin', 'admin'), assetController.updateIssueStatus);
+router.patch('/issues/:id', requirePermission('canManageAssets'), assetController.updateIssueStatus);
 
 module.exports = router;

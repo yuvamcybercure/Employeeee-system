@@ -8,13 +8,14 @@ const { logActivity } = require('../middleware/logger');
 exports.reportIssue = async (req, res) => {
     try {
         const { assetId, issueType, priority, description } = req.body;
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
 
         // Verify asset belongs to organization
-        const asset = await Asset.findOne({ _id: assetId, organizationId: req.user.organizationId._id });
-        if (!asset) return res.status(404).json({ message: 'Asset not found' });
+        const asset = await Asset.findOne({ _id: assetId, organizationId: orgId });
+        if (!asset) return res.status(404).json({ success: false, message: 'Asset not found' });
 
         const issue = await AssetIssue.create({
-            organizationId: req.user.organizationId._id,
+            organizationId: orgId,
             assetId,
             reportedBy: req.user._id,
             issueType,
@@ -25,14 +26,15 @@ exports.reportIssue = async (req, res) => {
         await logActivity(req.user._id, 'REPORT_ASSET_ISSUE', 'assets', { assetId, issueType }, req, issue._id, 'AssetIssue');
         res.status(201).json({ success: true, issue });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
 // GET /api/assets/issues
 exports.getIssues = async (req, res) => {
     try {
-        let filter = { organizationId: req.user.organizationId._id };
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        let filter = { organizationId: orgId };
         if (req.user.role === 'employee') filter.reportedBy = req.user._id;
 
         const issues = await AssetIssue.find(filter)
@@ -43,7 +45,7 @@ exports.getIssues = async (req, res) => {
 
         res.json({ success: true, issues });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
@@ -51,9 +53,10 @@ exports.getIssues = async (req, res) => {
 exports.updateIssueStatus = async (req, res) => {
     try {
         const { status, adminNote } = req.body;
-        const issue = await AssetIssue.findOne({ _id: req.params.id, organizationId: req.user.organizationId._id });
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        const issue = await AssetIssue.findOne({ _id: req.params.id, organizationId: orgId });
 
-        if (!issue) return res.status(404).json({ message: 'Issue not found' });
+        if (!issue) return res.status(404).json({ success: false, message: 'Issue not found' });
 
         issue.status = status;
         if (adminNote !== undefined) issue.adminNote = adminNote;
@@ -73,26 +76,38 @@ exports.updateIssueStatus = async (req, res) => {
 
         res.json({ success: true, issue: populatedIssue });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
 // GET /api/assets
 exports.getAssets = async (req, res) => {
     try {
-        let filter = { organizationId: req.user.organizationId._id };
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        if (!orgId && req.user.role !== 'superadmin') {
+            return res.status(400).json({ success: false, message: 'Organization ID is missing' });
+        }
+
+        let filter = {};
+        if (orgId) filter.organizationId = orgId;
         if (req.user.role === 'employee') filter.assignedTo = req.user._id;
-        const assets = await Asset.find(filter).populate('assignedTo', 'name profilePhoto').sort({ createdAt: -1 });
+
+        const assets = await Asset.find(filter)
+            .populate('assignedTo', 'name email profilePhoto')
+            .sort({ createdAt: -1 });
+
         res.json({ success: true, assets });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error('getAssets Error:', err);
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
 // POST /api/assets
 exports.createAsset = async (req, res) => {
     try {
-        const assetData = { ...req.body, organizationId: req.user.organizationId._id };
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        const assetData = { ...req.body, organizationId: orgId };
 
         if (assetData.assignedTo) {
             assetData.status = 'assigned';
@@ -108,7 +123,7 @@ exports.createAsset = async (req, res) => {
         await logActivity(req.user._id, 'CREATE_ASSET', 'assets', { name: asset.name }, req, asset._id, 'Asset');
         res.status(201).json({ success: true, asset });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
@@ -116,8 +131,9 @@ exports.createAsset = async (req, res) => {
 exports.assignAsset = async (req, res) => {
     try {
         const { userId, condition } = req.body;
-        const asset = await Asset.findOne({ _id: req.params.id, organizationId: req.user.organizationId._id });
-        if (!asset) return res.status(404).json({ message: 'Asset not found' });
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        const asset = await Asset.findOne({ _id: req.params.id, organizationId: orgId });
+        if (!asset) return res.status(404).json({ success: false, message: 'Asset not found' });
 
         asset.status = 'assigned';
         asset.assignedTo = userId;
@@ -129,15 +145,16 @@ exports.assignAsset = async (req, res) => {
         await logActivity(req.user._id, 'ASSIGN_ASSET', 'assets', { userId, assetId: req.params.id }, req, asset._id, 'Asset');
         res.json({ success: true, asset: populatedAsset });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
 // PATCH /api/assets/:id/revoke
 exports.revokeAsset = async (req, res) => {
     try {
-        const asset = await Asset.findOne({ _id: req.params.id, organizationId: req.user.organizationId._id });
-        if (!asset) return res.status(404).json({ message: 'Asset not found' });
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        const asset = await Asset.findOne({ _id: req.params.id, organizationId: orgId });
+        if (!asset) return res.status(404).json({ success: false, message: 'Asset not found' });
 
         // Update history for the last assignment
         const lastAssignment = asset.assignmentHistory.find(h => !h.returnDate && String(h.userId) === String(asset.assignedTo));
@@ -153,18 +170,19 @@ exports.revokeAsset = async (req, res) => {
         await logActivity(req.user._id, 'REVOKE_ASSET', 'assets', { assetId: req.params.id }, req, asset._id, 'Asset');
         res.json({ success: true, asset });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
 // DELETE /api/assets/:id
 exports.deleteAsset = async (req, res) => {
     try {
-        const asset = await Asset.findOneAndDelete({ _id: req.params.id, organizationId: req.user.organizationId._id });
-        if (!asset) return res.status(404).json({ message: 'Asset not found' });
+        const orgId = req.user.organizationId?._id || req.user.organizationId;
+        const asset = await Asset.findOneAndDelete({ _id: req.params.id, organizationId: orgId });
+        if (!asset) return res.status(404).json({ success: false, message: 'Asset not found' });
         await logActivity(req.user._id, 'DELETE_ASSET', 'assets', { name: asset.name }, req, asset._id, 'Asset');
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };

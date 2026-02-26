@@ -11,6 +11,8 @@ const projectSchema = new mongoose.Schema({
         default: 'planning',
     },
     priority: { type: String, enum: ['low', 'medium', 'high', 'critical'], default: 'medium' },
+    billingType: { type: String, enum: ['hourly', 'monthly', 'fixed'], default: 'fixed' },
+    billingRate: { type: Number, default: 0 },
     startDate: { type: Date },
     endDate: { type: Date },
     progress: { type: Number, default: 0, min: 0, max: 100 },

@@ -5,13 +5,17 @@ const { uploadBase64 } = require('../config/cloudinary');
 // PATCH /api/organization/:id
 exports.updateOrganization = async (req, res) => {
     try {
-        const { name, slug, settings, logo } = req.body;
+        const { name, slug, settings, logo, address, contact, taxInfo, currency } = req.body;
         const org = await Organization.findById(req.params.id);
 
         if (!org) return res.status(404).json({ message: 'Organization not found' });
 
         if (name) org.name = name;
         if (slug) org.slug = slug;
+        if (address !== undefined) org.address = address;
+        if (contact) org.contact = { ...org.contact, ...contact };
+        if (taxInfo) org.taxInfo = { ...org.taxInfo, ...taxInfo };
+        if (currency) org.currency = currency;
         if (settings) org.settings = { ...org.settings, ...settings };
 
         if (logo && logo.startsWith('data:image')) {

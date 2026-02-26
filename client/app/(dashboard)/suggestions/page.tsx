@@ -298,9 +298,9 @@ function SuggestionCard({ idea, userId, onVote }: any) {
                     <div className="flex flex-col md:flex-row md:items-center justify-between pt-4 border-t border-slate-50 gap-4">
                         <div className="flex items-center gap-3 shrink-0">
                             <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold overflow-hidden border border-slate-200">
-                                {idea.isAnonymous ? '👤' : (idea.userId?.profilePhoto ? <img src={idea.userId.profilePhoto} /> : idea.userId?.name?.charAt(0))}
+                                {idea.isAnonymous ? '👤' : (idea.userId?.profilePhoto ? <img src={idea.userId.profilePhoto} /> : (idea.userId?.name?.charAt(0) || 'U'))}
                             </div>
-                            <span className="text-sm font-bold text-slate-700">{idea.isAnonymous ? 'Anonymous' : idea.userId?.name}</span>
+                            <span className="text-sm font-bold text-slate-700">{idea.isAnonymous ? 'Anonymous' : (idea.userId?.name || 'Unknown')}</span>
                         </div>
                         <button
                             onClick={toggleComments}
@@ -331,11 +331,11 @@ function SuggestionCard({ idea, userId, onVote }: any) {
                                     {comments.map(c => (
                                         <div key={c._id} className="flex gap-4">
                                             <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[10px] font-bold border border-slate-100 overflow-hidden shrink-0">
-                                                {c.userId?.profilePhoto ? <img src={c.userId.profilePhoto} /> : c.userId?.name?.charAt(0)}
+                                                {c.userId?.profilePhoto ? <img src={c.userId.profilePhoto} /> : (c.userId?.name?.charAt(0) || 'U')}
                                             </div>
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-black text-slate-900">{c.userId?.name}</span>
+                                                    <span className="text-xs font-black text-slate-900">{c.userId?.name || 'Unknown'}</span>
                                                     <span className="text-[10px] text-slate-400">{new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                                 </div>
                                                 <p className="text-sm text-slate-600 font-medium bg-white px-4 py-2 rounded-2xl rounded-tl-none shadow-sm border border-slate-100/50">{c.content}</p>

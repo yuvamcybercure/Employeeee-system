@@ -4,10 +4,13 @@ const permissionController = require('../controllers/permissionController');
 const { protect } = require('../middleware/auth');
 const { requireRole } = require('../middleware/rbac');
 
-router.use(protect, requireRole('superadmin'));
+router.use(protect);
+router.use(requireRole('superadmin'));
 
-router.get('/all', permissionController.getAllPermissions);
-router.get('/:role', permissionController.getPermissions);
-router.patch('/:role', permissionController.updatePermissions);
+router.get('/roles', permissionController.getRolePermissions);
+router.post('/roles', permissionController.updateRolePermissions);
+
+router.get('/users/:id', permissionController.getUserWithPermissions);
+router.put('/users/:id', permissionController.updateUserPermissions);
 
 module.exports = router;

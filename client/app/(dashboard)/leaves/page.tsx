@@ -266,21 +266,21 @@ export default function LeavesPage() {
                                                         <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-xs">
                                                             {leave.userId?.profilePhoto ? (
                                                                 <img src={leave.userId.profilePhoto} alt="" className="w-full h-full object-cover rounded-xl" />
-                                                            ) : leave.userId?.name?.charAt(0)}
+                                                            ) : (leave.userId?.name?.charAt(0) || 'U')}
                                                         </div>
                                                         <div>
-                                                            <p className="text-xs font-black text-slate-800 leading-none">{leave.userId?.name || '---'}</p>
+                                                            <p className="text-xs font-black text-slate-800 leading-none">{leave.userId?.name || 'Unknown'}</p>
                                                             <p className="text-[9px] font-bold text-slate-400 uppercase mt-1.5">{leave.userId?.department || 'Member'}</p>
-                                                            <p className="text-[9px] font-medium text-slate-400 lowercase">{leave.userId?.email}</p>
+                                                            <p className="text-[9px] font-medium text-slate-400 lowercase">{leave.userId?.email || 'No email'}</p>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5 text-center">
                                                     <div className="flex flex-col items-center gap-1">
                                                         <StatusBadge status={leave.status} />
-                                                        {leave.reviewedBy && (
+                                                        {leave.reviewedBy?.name && (
                                                             <span className="text-[8px] font-black text-slate-400 tracking-tighter uppercase whitespace-nowrap">
-                                                                By {leave.reviewedBy.name} ({leave.reviewedBy.employeeId})
+                                                                By {leave.reviewedBy.name} ({leave.reviewedBy.employeeId || 'N/A'})
                                                             </span>
                                                         )}
                                                     </div>

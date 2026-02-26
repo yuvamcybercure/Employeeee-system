@@ -33,5 +33,6 @@ const attendanceSchema = new mongoose.Schema({
 attendanceSchema.index({ userId: 1, date: 1 }, { unique: true });
 attendanceSchema.index({ date: 1 });
 attendanceSchema.index({ 'clockIn.ip': 1 });
+attendanceSchema.index({ organizationId: 1, date: 1 }); // Fix #8: Compound index for cross-tenant queries
 
 module.exports = mongoose.model('Attendance', attendanceSchema);

@@ -27,9 +27,14 @@ import {
     Settings,
     Sparkles,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    CreditCard,
+    Building2,
+    BarChart3,
+    Activity
 } from 'lucide-react';
 import api from '@/lib/api';
+import { MasterContextSwitcher } from './MasterContextSwitcher';
 
 interface NavItem {
     title: string;
@@ -42,18 +47,30 @@ interface NavItem {
 
 const navItems: NavItem[] = [
     { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { title: 'My Profile', href: '/profile', icon: User }, // Added this
+    { title: 'My Profile', href: '/profile', icon: User },
     { title: 'Attendance', href: '/attendance', icon: MapPin },
     { title: 'Leaves', href: '/leaves', icon: Calendar },
     { title: 'Chat', href: '/chat', icon: MessageSquare },
     { title: 'Projects', href: '/projects', icon: Briefcase, permission: 'canManageProjects' },
     { title: 'Timesheets', href: '/timesheets', icon: FileText },
-    { title: 'Suggestions', href: '/suggestions', icon: Lightbulb },
-    { title: 'Policies', href: '/policies', icon: ShieldCheck },
+    { title: 'Finance', href: '/admin/finance', icon: CreditCard, permission: 'canViewFinanceDashboard' },
     { title: 'My Assets', href: '/assets', icon: Laptop },
-    { title: 'Users', href: '/users', icon: Users, role: ['superadmin', 'admin'] },
-    { title: 'Permissions', href: '/permissions', icon: Lock, role: ['superadmin'] },
+    { title: 'Inventory', href: '/assets/inventory', icon: Users, permission: 'canViewAssets' },
+    { title: 'Suggestions', href: '/suggestions', icon: Lightbulb, permission: 'canViewSuggestions' },
+    { title: 'Policies', href: '/policies', icon: ShieldCheck },
+    { title: 'Users', href: '/users', icon: Users, permission: 'canViewEmployees' },
+    { title: 'Security', href: '/admin/permissions', icon: Lock, permission: 'canManagePermissions' },
     { title: 'Settings', href: '/settings', icon: Settings, role: ['superadmin'] },
+];
+
+const masterNavItems: NavItem[] = [
+    { title: 'Command Center', href: '/master', icon: ShieldCheck },
+    { title: 'Organization Flux', href: '/master/organizations', icon: Building2 },
+    { title: 'User Matrix', href: '/master/users', icon: Users },
+    { title: 'Analytics Hub', href: '/master/analytics', icon: BarChart3 },
+    { title: 'Audit Stream', href: '/master/audit', icon: Activity },
+    { title: 'Master Pulse', href: '/master/pulse', icon: Sparkles },
+    { title: 'My Profile', href: '/profile', icon: User },
 ];
 
 export function Sidebar() {
@@ -129,7 +146,7 @@ export function Sidebar() {
         };
     }, [user]);
 
-    const filteredItems = navItems.filter(item => {
+    const filteredItems = ((user?.role as string) === 'master-admin' ? masterNavItems : navItems).filter(item => {
         if (item.role && !item.role.includes(user?.role || '')) return false;
         if (item.permission && !hasPermission(item.permission)) return false;
         return true;
@@ -205,9 +222,18 @@ export function Sidebar() {
                 </div>
 
                 {/* Navigation Items */}
-                <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto overflow-x-hidden pt-2 scrollbar-none">
+                <nav className="flex-1 overflow-y-auto overflow-x-hidden pt-2 scrollbar-none p-4 space-y-1.5 pt-0">
+                    <MasterContextSwitcher isCollapsed={isCollapsed} />
                     {filteredItems.map((item) => {
-                        const isActive = pathname.startsWith(item.href);
+                        const isActive = item.href === '/dashboard'
+                            ? pathname === '/dashboard'
+                            : pathname.startsWith(item.href) && (pathname.length === item.href.length || pathname[item.href.length] === '/');
+
+                        // Special case for Assets vs Inventory to avoid overlap
+                        const isReallyActive = item.href === '/assets'
+                            ? pathname === '/assets'
+                            : isActive;
+
                         return (
                             <Link
                                 key={item.href}
@@ -216,12 +242,12 @@ export function Sidebar() {
                                 className={cn(
                                     "group flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 text-sm font-bold relative overflow-hidden",
                                     isCollapsed && "justify-center px-0",
-                                    isActive
+                                    isReallyActive
                                         ? "text-white shadow-lg shadow-primary/25"
                                         : "text-slate-500 hover:text-primary hover:bg-slate-50"
                                 )}
                             >
-                                {isActive && (
+                                {isReallyActive && (
                                     <motion.div
                                         layoutId="sidebar-active"
                                         className="absolute inset-0 bg-gradient-to-r from-primary to-primary/90 z-0"
@@ -287,7 +313,7 @@ export function Sidebar() {
                         </button>
                     </div>
                 </div>
-            </aside>
+            </aside >
         </>
     );
 }

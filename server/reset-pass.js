@@ -12,7 +12,7 @@ const resetPassword = async () => {
             return;
         }
         user.password = 'admin123';
-        user.plainPassword = 'admin123';
+        // SECURITY: plainPassword removed
         await user.save();
         console.log('✅ Password reset to: admin123');
     } catch (err) {

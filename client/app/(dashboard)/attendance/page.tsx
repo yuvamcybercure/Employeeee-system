@@ -384,10 +384,10 @@ export default function AttendancePage() {
                                                                 <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-xs">
                                                                     {log.userId?.profilePhoto ? (
                                                                         <img src={log.userId.profilePhoto} alt="" className="w-full h-full object-cover rounded-xl" />
-                                                                    ) : log.userId?.name?.charAt(0)}
+                                                                    ) : (log.userId?.name?.charAt(0) || 'U')}
                                                                 </div>
                                                                 <div>
-                                                                    <p className="text-xs font-black text-slate-800 leading-none">{log.userId?.name || '---'}</p>
+                                                                    <p className="text-xs font-black text-slate-800 leading-none">{log.userId?.name || 'Unknown'}</p>
                                                                     <p className="text-[9px] font-bold text-slate-400 uppercase mt-1.5">{log.userId?.employeeId || 'EMP-X'}</p>
                                                                 </div>
                                                             </div>

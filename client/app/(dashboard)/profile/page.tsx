@@ -18,7 +18,8 @@ import {
     MapPin,
     Users,
     AlertTriangle,
-    CheckCircle2
+    CheckCircle2,
+    IndianRupee
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -27,10 +28,11 @@ import { useAuth } from '@/lib/auth';
 import { ProfileForm } from '@/components/profile/ProfileForm';
 import { DocumentManager } from '@/components/profile/DocumentManager';
 import { SecuritySettings } from '@/components/profile/SecuritySettings';
+import { BankDetailsForm } from '@/components/profile/BankDetailsForm';
 
 export default function ProfilePage() {
     const { user, login } = useAuth();
-    const [activeTab, setActiveTab] = useState<'profile' | 'documents' | 'security'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'documents' | 'security' | 'bank'>('profile');
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
@@ -40,7 +42,6 @@ export default function ProfilePage() {
             const { data } = await api.get(`/users/${user._id}`);
             if (data.success) {
                 // Update local auth state if possible, though context might handle it
-                // For now, let's assume page refresh or context update works
             }
         } catch (err) {
             console.error('Failed to refresh user');
@@ -48,7 +49,7 @@ export default function ProfilePage() {
     };
 
     return (
-        <ProtectedRoute allowedRoles={['employee', 'admin', 'superadmin']}>
+        <ProtectedRoute allowedRoles={['employee', 'admin', 'superadmin', 'master-admin']}>
             <div className="max-w-7xl mx-auto space-y-10 pb-20 p-4 md:p-0">
                 {/* Profile Header */}
                 <div className="relative bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
@@ -89,7 +90,7 @@ export default function ProfilePage() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <MapPin size={16} />
-                                    <span>{user?.organizationId?.name}</span>
+                                    <span>{user?.organizationId?.name || 'Global Platform'}</span>
                                 </div>
                             </div>
                         </div>
@@ -108,11 +109,11 @@ export default function ProfilePage() {
                     </div>
 
                     {/* Navigation Tabs */}
-                    <div className="flex items-center gap-8 px-10 border-t border-slate-50 bg-slate-50/30">
+                    <div className="flex items-center gap-8 px-10 border-t border-slate-50 bg-slate-50/30 overflow-x-auto scrollbar-none">
                         <button
                             onClick={() => setActiveTab('profile')}
                             className={cn(
-                                "flex items-center gap-2 py-6 text-xs font-black uppercase tracking-widest transition-all relative",
+                                "flex items-center gap-2 py-6 text-xs font-black uppercase tracking-widest transition-all relative shrink-0",
                                 activeTab === 'profile' ? "text-primary" : "text-slate-400 hover:text-slate-600"
                             )}
                         >
@@ -120,9 +121,19 @@ export default function ProfilePage() {
                             {activeTab === 'profile' && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full" />}
                         </button>
                         <button
+                            onClick={() => setActiveTab('bank')}
+                            className={cn(
+                                "flex items-center gap-2 py-6 text-xs font-black uppercase tracking-widest transition-all relative shrink-0",
+                                activeTab === 'bank' ? "text-primary" : "text-slate-400 hover:text-slate-600"
+                            )}
+                        >
+                            <IndianRupee size={16} /> Bank Details
+                            {activeTab === 'bank' && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full" />}
+                        </button>
+                        <button
                             onClick={() => setActiveTab('documents')}
                             className={cn(
-                                "flex items-center gap-2 py-6 text-xs font-black uppercase tracking-widest transition-all relative",
+                                "flex items-center gap-2 py-6 text-xs font-black uppercase tracking-widest transition-all relative shrink-0",
                                 activeTab === 'documents' ? "text-primary" : "text-slate-400 hover:text-slate-600"
                             )}
                         >
@@ -132,7 +143,7 @@ export default function ProfilePage() {
                         <button
                             onClick={() => setActiveTab('security')}
                             className={cn(
-                                "flex items-center gap-2 py-6 text-xs font-black uppercase tracking-widest transition-all relative",
+                                "flex items-center gap-2 py-6 text-xs font-black uppercase tracking-widest transition-all relative shrink-0",
                                 activeTab === 'security' ? "text-primary" : "text-slate-400 hover:text-slate-600"
                             )}
                         >
@@ -153,6 +164,7 @@ export default function ProfilePage() {
                             transition={{ duration: 0.3 }}
                         >
                             {activeTab === 'profile' && <ProfileForm user={user} onUpdate={refreshUser} />}
+                            {activeTab === 'bank' && <BankDetailsForm user={user} onUpdate={refreshUser} />}
                             {activeTab === 'documents' && <DocumentManager user={user} onUpdate={refreshUser} />}
                             {activeTab === 'security' && <SecuritySettings user={user} onUpdate={refreshUser} />}
                         </motion.div>

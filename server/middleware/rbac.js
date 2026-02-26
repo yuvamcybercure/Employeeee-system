@@ -13,8 +13,8 @@ const requireRole = (...roles) => (req, res, next) => {
 const requirePermission = (permission) => async (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: 'Not authenticated' });
 
-    // Superadmin always has full access
-    if (req.user.role === 'superadmin') return next();
+    // Master-admin and Superadmin always have full access
+    if (['master-admin', 'superadmin'].includes(req.user.role)) return next();
 
     // Check user-level override first
     const override = req.user.permissionOverrides?.[permission];
