@@ -83,22 +83,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const login = (userData: any) => {
+        if (userData.token) {
+            localStorage.setItem('token', userData.token);
+        }
         setUser({ ...userData.user, permissions: userData.permissions });
-        const redirectionMap = {
-            superadmin: '/dashboard',
-            admin: '/dashboard',
-            employee: '/dashboard',
-        };
         router.push('/dashboard');
     };
 
     const logout = async () => {
         try {
             await api.post('/auth/logout');
-            setUser(null);
-            router.push('/login');
         } catch (err) {
             console.error('Logout failed');
+        } finally {
+            localStorage.removeItem('token');
+            setUser(null);
+            router.push('/login');
         }
     };
 

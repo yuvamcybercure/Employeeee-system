@@ -95,7 +95,7 @@ exports.login = async (req, res, next) => {
 
         const userObj = user.toSafeJSON ? user.toSafeJSON() : user.toObject();
         delete userObj.password;
-        res.json({ success: true, user: userObj, permissions });
+        res.json({ success: true, user: userObj, permissions, token });
     } catch (err) {
         next(err);
     }
