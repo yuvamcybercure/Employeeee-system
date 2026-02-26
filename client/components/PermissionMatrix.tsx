@@ -17,7 +17,7 @@ export function PermissionMatrix() {
 
     const fetchMatrices = async () => {
         try {
-            const { data } = await api.get('/permissions/all');
+            const { data } = await api.get('/permissions/roles');
             if (data.success) setMatrices(data.data);
         } catch (err) {
             console.error('Failed to fetch permissions');

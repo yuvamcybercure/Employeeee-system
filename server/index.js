@@ -58,6 +58,7 @@ const io = new Server(server, {
 });
 
 // Middleware
+app.set('trust proxy', 1); // Trust first proxy (Render, Vercel, etc.)
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({
     origin: (origin, callback) => {
