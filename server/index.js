@@ -130,8 +130,8 @@ app.use('/api/', globalLimiter);
 
 // Strict auth-specific rate limiter (prevents brute-force)
 const authLimiter = rateLimit({
-    windowMs: 5 * 60 * 1000, // 5-minute window
-    max: 5, // Max 5 attempts per 5 minutes
+    windowMs: 5 * 60 * 1000,
+    max: 15, // 15 attempts per 5 minutes (includes preflight + actual requests)
     message: 'Too many authentication attempts. Please try again after 5 minutes.',
     standardHeaders: true,
     legacyHeaders: false,
