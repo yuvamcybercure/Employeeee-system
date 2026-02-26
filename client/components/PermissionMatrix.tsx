@@ -18,7 +18,7 @@ export function PermissionMatrix() {
     const fetchMatrices = async () => {
         try {
             const { data } = await api.get('/permissions/roles');
-            if (data.success) setMatrices(data.data);
+            if (data.success && Array.isArray(data.data)) setMatrices(data.data);
         } catch (err) {
             console.error('Failed to fetch permissions');
         } finally {
@@ -44,7 +44,8 @@ export function PermissionMatrix() {
     const handleSave = async (role: string) => {
         setSaving(true);
         try {
-            const matrix = matrices.find(m => m.role === role);
+            const matrix = matrices?.find(m => m.role === role);
+            if (!matrix) return;
             await api.patch(`/permissions/${role}`, { permissions: matrix.permissions });
             alert('Permissions updated successfully');
         } catch (err) {
@@ -56,8 +57,8 @@ export function PermissionMatrix() {
 
     if (loading) return <div>Loading...</div>;
 
-    const currentMatrix = matrices.find(m => m.role === activeTab);
-    const permissionKeys = currentMatrix ? Object.keys(currentMatrix.permissions) : [];
+    const currentMatrix = (matrices || []).find(m => m.role === activeTab);
+    const permissionKeys = currentMatrix?.permissions ? Object.keys(currentMatrix.permissions) : [];
 
     return (
         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 space-y-8">
@@ -86,7 +87,7 @@ export function PermissionMatrix() {
                 {permissionKeys.map((key) => (
                     <div key={key} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-slate-100/50 transition-colors">
                         <div className="flex items-center gap-4">
-                            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-sm", currentMatrix.permissions[key] ? "bg-green-500 text-white" : "bg-slate-200 text-slate-500")}>
+                            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-sm", currentMatrix?.permissions?.[key] ? "bg-green-500 text-white" : "bg-slate-200 text-slate-500")}>
                                 <Shield size={20} />
                             </div>
                             <div>
@@ -99,12 +100,12 @@ export function PermissionMatrix() {
                             onClick={() => handleToggle(activeTab, key)}
                             className={cn(
                                 "w-12 h-6 rounded-full relative transition-all duration-300",
-                                currentMatrix.permissions[key] ? "bg-primary" : "bg-slate-300"
+                                currentMatrix?.permissions?.[key] ? "bg-primary" : "bg-slate-300"
                             )}
                         >
                             <div className={cn(
                                 "absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm",
-                                currentMatrix.permissions[key] ? "left-7" : "left-1"
+                                currentMatrix?.permissions?.[key] ? "left-7" : "left-1"
                             )} />
                         </button>
                     </div>
