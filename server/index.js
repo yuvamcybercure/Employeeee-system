@@ -73,7 +73,8 @@ app.use('/public', express.static(path.join(__dirname, 'public')));
 const uploadDirs = [
     'public/uploads/attendance',
     'public/uploads/profiles',
-    'public/uploads/documents'
+    'public/uploads/documents',
+    'public/uploads/branding'
 ];
 uploadDirs.forEach(dir => {
     const fullPath = path.join(__dirname, dir);

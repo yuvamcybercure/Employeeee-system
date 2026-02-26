@@ -22,7 +22,10 @@ const requirePermission = (permission) => async (req, res, next) => {
     if (override === false) return res.status(403).json({ message: 'Permission denied' });
 
     // Fall back to role-level permission matrix
-    const rolePerms = await RolePermission.findOne({ role: req.user.role });
+    const rolePerms = await RolePermission.findOne({
+        role: req.user.role,
+        organizationId: req.user.organizationId?._id || req.user.organizationId
+    });
     if (rolePerms?.permissions?.[permission]) return next();
 
     return res.status(403).json({ message: 'Permission denied' });

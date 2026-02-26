@@ -12,7 +12,9 @@ router.post('/', requirePermission('canManageProjects'), projectController.creat
 router.patch('/:id', requirePermission('canManageProjects'), projectController.updateProject);
 router.delete('/:id', requirePermission('canManageProjects'), projectController.deleteProject);
 
-router.post('/:id/tasks', requirePermission('canManageProjects'), projectController.addTask);
+// Task management
+router.post('/:id/tasks', projectController.addTask);
 router.patch('/:id/tasks/:taskId', projectController.updateTask);
+router.post('/:id/tasks/:taskId/comments', projectController.addComment);
 
 module.exports = router;

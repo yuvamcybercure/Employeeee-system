@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import io from 'socket.io-client';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { SidebarProvider, useSidebar } from '@/context/SidebarContext';
@@ -28,6 +29,7 @@ import {
     ChevronLeft,
     ChevronRight
 } from 'lucide-react';
+import api from '@/lib/api';
 
 interface NavItem {
     title: string;
@@ -42,8 +44,8 @@ const navItems: NavItem[] = [
     { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { title: 'My Profile', href: '/profile', icon: User }, // Added this
     { title: 'Attendance', href: '/attendance', icon: MapPin },
-    { title: 'Leaves', href: '/leaves', icon: Calendar, badge: 2 },
-    { title: 'Chat', href: '/chat', icon: MessageSquare, badge: 5 },
+    { title: 'Leaves', href: '/leaves', icon: Calendar },
+    { title: 'Chat', href: '/chat', icon: MessageSquare },
     { title: 'Projects', href: '/projects', icon: Briefcase, permission: 'canManageProjects' },
     { title: 'Timesheets', href: '/timesheets', icon: FileText },
     { title: 'Suggestions', href: '/suggestions', icon: Lightbulb },
@@ -59,11 +61,86 @@ export function Sidebar() {
     const pathname = usePathname();
     const [mobileOpen, setMobileOpen] = useState(false);
     const { isCollapsed, toggleCollapsed } = useSidebar();
+    const [pendingLeaves, setPendingLeaves] = useState(0);
+    const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+
+    useEffect(() => {
+        if (!isAdmin) return;
+        const fetchPending = async () => {
+            try {
+                const { data } = await api.get('/leaves/pending-count');
+                if (data.success) setPendingLeaves(data.count);
+            } catch (err) {
+                console.error('Failed to fetch pending leaves');
+            }
+        };
+        fetchPending();
+        // Refresh every 2 minutes
+        const interval = setInterval(fetchPending, 120000);
+        return () => clearInterval(interval);
+    }, [isAdmin]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const fetchUnreadCount = async () => {
+            try {
+                const { data } = await api.get('/messages/unread-count');
+                if (data.success) setUnreadChatCount(data.count);
+            } catch (err) {
+                console.error('Failed to fetch unread chat count');
+            }
+        };
+
+        fetchUnreadCount();
+
+        const getSocketUrl = () => {
+            if (process.env.NEXT_PUBLIC_SOCKET_URL) return process.env.NEXT_PUBLIC_SOCKET_URL;
+            if (typeof window !== 'undefined') {
+                const hostname = window.location.hostname;
+                if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+                    return `http://${hostname}:5000`;
+                }
+            }
+            return 'http://localhost:5000';
+        };
+
+        const socket = io(getSocketUrl());
+        socket.emit('user_online', user._id);
+
+        socket.on('receive_message', (msg: any) => {
+            // Increment unread count if message is for us and we aren't on the chat page?
+            // Actually, just re-fetch to be safe and accurate
+            fetchUnreadCount();
+        });
+
+        socket.on('messages_marked_read', () => {
+            fetchUnreadCount();
+        });
+
+        // Also refresh periodically
+        const interval = setInterval(fetchUnreadCount, 60000);
+
+        return () => {
+            socket.disconnect();
+            clearInterval(interval);
+        };
+    }, [user]);
 
     const filteredItems = navItems.filter(item => {
         if (item.role && !item.role.includes(user?.role || '')) return false;
         if (item.permission && !hasPermission(item.permission)) return false;
         return true;
+    }).map(item => {
+        if (item.title === 'Leaves' && isAdmin) {
+            return { ...item, badge: pendingLeaves };
+        }
+        if (item.title === 'Chat') {
+            return { ...item, badge: unreadChatCount };
+        }
+        return item;
     });
 
     return (
@@ -159,7 +236,7 @@ export function Sidebar() {
                                     {!isCollapsed && (
                                         <>
                                             <span className="flex-1 truncate">{item.title}</span>
-                                            {item.badge && (
+                                            {!!item.badge && (
                                                 <span className={cn(
                                                     "w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0",
                                                     isActive ? "bg-white/20 text-white backdrop-blur-md" : "bg-primary text-white"

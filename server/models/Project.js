@@ -25,8 +25,14 @@ const projectSchema = new mongoose.Schema({
         assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         status: { type: String, enum: ['todo', 'in-progress', 'review', 'done'], default: 'todo' },
         priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
+        createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         dueDate: { type: Date },
         completedAt: { type: Date },
+        comments: [{
+            userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            text: { type: String, required: true },
+            createdAt: { type: Date, default: Date.now }
+        }]
     }],
 }, { timestamps: true });
 

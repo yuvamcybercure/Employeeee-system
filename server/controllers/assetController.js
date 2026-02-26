@@ -92,7 +92,19 @@ exports.getAssets = async (req, res) => {
 // POST /api/assets
 exports.createAsset = async (req, res) => {
     try {
-        const asset = await Asset.create({ ...req.body, organizationId: req.user.organizationId._id });
+        const assetData = { ...req.body, organizationId: req.user.organizationId._id };
+
+        if (assetData.assignedTo) {
+            assetData.status = 'assigned';
+            assetData.assignedDate = new Date();
+            assetData.assignmentHistory = [{
+                userId: assetData.assignedTo,
+                assignedDate: new Date(),
+                condition: 'Initial Assignment'
+            }];
+        }
+
+        const asset = await Asset.create(assetData);
         await logActivity(req.user._id, 'CREATE_ASSET', 'assets', { name: asset.name }, req, asset._id, 'Asset');
         res.status(201).json({ success: true, asset });
     } catch (err) {

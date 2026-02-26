@@ -1,6 +1,7 @@
 const Leave = require('../models/Leave');
 const User = require('../models/User');
 const { logActivity } = require('../middleware/logger');
+const Organization = require('../models/Organization');
 
 // POST /api/leaves  - Employee applies for leave
 exports.applyLeave = async (req, res) => {
@@ -46,7 +47,7 @@ exports.getLeaves = async (req, res) => {
         }
 
         const leaves = await Leave.find(filter)
-            .populate('userId', 'name department profilePhoto')
+            .populate('userId', 'name department profilePhoto email')
             .populate('reviewedBy', 'name employeeId')
             .sort({ createdAt: -1 });
         res.json({ success: true, leaves });
@@ -122,12 +123,17 @@ exports.getLeaveBalance = async (req, res) => {
             startDate: { $gte: startOfYear, $lte: endOfYear }
         });
 
-        const entitlements = user.leaveEntitlements || {
-            sick: { yearly: 12, monthly: 1 },
-            casual: { yearly: 12, monthly: 1 },
-            wfh: { yearly: 24, monthly: 2 },
-            unpaid: { yearly: 365, monthly: 31 }
-        };
+        let entitlements = user.leaveEntitlements;
+
+        if (!entitlements || Object.keys(entitlements).length === 0) {
+            const org = await Organization.findById(req.user.organizationId._id);
+            entitlements = org?.settings?.defaultLeaveEntitlements || {
+                sick: { yearly: 12, monthly: 1 },
+                casual: { yearly: 12, monthly: 1 },
+                wfh: { yearly: 24, monthly: 2 },
+                unpaid: { yearly: 365, monthly: 31 }
+            };
+        }
 
         const breakdown = {};
         Object.keys(entitlements).forEach(type => {
@@ -142,12 +148,25 @@ exports.getLeaveBalance = async (req, res) => {
             breakdown[type] = {
                 usedMonth,
                 usedYear,
-                quotaMonth: entitlements[type].monthly,
-                quotaYear: entitlements[type].yearly
+                quotaMonth: (entitlements[type]?.monthly !== undefined) ? entitlements[type].monthly : (entitlements[type] || 0),
+                quotaYear: (entitlements[type]?.yearly !== undefined) ? entitlements[type].yearly : (entitlements[type] || 0)
             };
         });
 
         res.json({ success: true, balance: breakdown });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// GET /api/leaves/pending-count
+exports.getPendingCount = async (req, res) => {
+    try {
+        const count = await Leave.countDocuments({
+            organizationId: req.user.organizationId._id,
+            status: 'pending'
+        });
+        res.json({ success: true, count });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

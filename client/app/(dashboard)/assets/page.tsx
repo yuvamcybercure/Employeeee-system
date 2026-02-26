@@ -151,7 +151,7 @@ export default function AssetsPage() {
                                 className="w-full md:w-64 pl-12 pr-4 py-3 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium text-sm"
                             />
                         </div>
-                        {user?.role === 'superadmin' && view === 'inventory' && (
+                        {(user?.role === 'superadmin' || user?.role === 'admin') && view === 'inventory' && (
                             <button
                                 onClick={() => { setActiveAsset(null); setShowAssetModal(true); }}
                                 className="flex items-center justify-center gap-2 px-8 py-3 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
@@ -207,7 +207,7 @@ export default function AssetsPage() {
 
                                         {/* Actions Overlay */}
                                         <div className="absolute inset-x-0 bottom-0 p-4 translate-y-full group-hover:translate-y-0 transition-all bg-white/95 backdrop-blur-md flex gap-2">
-                                            {user?.role === 'superadmin' ? (
+                                            {user?.role === 'superadmin' || user?.role === 'admin' ? (
                                                 <>
                                                     {asset.status === 'available' ? (
                                                         <button
@@ -319,7 +319,7 @@ export default function AssetsPage() {
                                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">{issue.status}</span>
                                                     </div>
                                                 </td>
-                                                {user?.role === 'superadmin' && (
+                                                {(user?.role === 'superadmin' || user?.role === 'admin') && (
                                                     <td className="px-8 py-6 text-right">
                                                         <div className="flex justify-end gap-2">
                                                             {issue.status === 'open' && (

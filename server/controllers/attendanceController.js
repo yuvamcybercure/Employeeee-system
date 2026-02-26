@@ -217,10 +217,10 @@ exports.getHistory = async (req, res) => {
     }
 };
 
-// GET /api/attendance/overview?month=&year=
+// GET /api/attendance/overview?month=&year=&userId=
 exports.getOverview = async (req, res) => {
     try {
-        const { month, year } = req.query;
+        const { month, year, userId } = req.query;
         const now = new Date();
         const targetMonth = month || (now.getMonth() + 1);
         const targetYear = year || now.getFullYear();
@@ -229,27 +229,40 @@ exports.getOverview = async (req, res) => {
 
         const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
 
+        if (!req.user?.organizationId?._id) {
+            console.error('Missing organizationId for user:', req.user?._id);
+            return res.status(400).json({ message: 'Organization data not found for your account' });
+        }
+
         let query = { date: { $regex: `^${datePrefix}` }, organizationId: req.user.organizationId._id };
-        if (!isAdmin) query.userId = req.user._id;
+
+        if (isAdmin) {
+            if (userId) query.userId = userId;
+        } else {
+            query.userId = req.user._id;
+        }
 
         const records = await Attendance.find(query).populate('userId', 'name department profilePhoto employeeId');
 
-        // Total employees count (for Admin only)
-        const totalEmployees = isAdmin ? await User.countDocuments({ role: 'employee', isActive: true, organizationId: req.user.organizationId._id }) : 1;
+        // Total employees count (for Admin only, unless filtering by one user)
+        const totalEmployees = (isAdmin && !userId) ? await User.countDocuments({ role: 'employee', isActive: true, organizationId: req.user.organizationId._id }) : 1;
 
         // Stats calculation
         let presentCount = 0;
         let lateCount = 0;
 
-        if (isAdmin) {
+        if (isAdmin && !userId) {
             const presentSet = new Set();
             lateCount = records.filter(r => r.status === 'late').length;
             records.forEach(r => {
-                if (['present', 'late'].includes(r.status)) presentSet.add(String(r.userId._id));
+                // Safeguard against null userId
+                if (['present', 'late'].includes(r.status) && r.userId?._id) {
+                    presentSet.add(String(r.userId._id));
+                }
             });
             presentCount = presentSet.size;
         } else {
-            // Personal stats for employee
+            // Personal stats for employee OR specific user selected by admin
             presentCount = records.filter(r => ['present', 'late'].includes(r.status)).length;
             lateCount = records.filter(r => r.status === 'late').length;
         }
@@ -266,7 +279,11 @@ exports.getOverview = async (req, res) => {
                 { $and: [{ startDate: { $lte: startOfMonth } }, { endDate: { $gte: endOfMonth } }] }
             ]
         };
-        if (!isAdmin) leaveQuery.userId = req.user._id;
+        if (userId) {
+            leaveQuery.userId = userId;
+        } else if (!isAdmin) {
+            leaveQuery.userId = req.user._id;
+        }
 
         const leaves = await Leave.find(leaveQuery);
         const totalLeavesCount = leaves.reduce((acc, curr) => acc + (curr.totalDays || 0), 0);
@@ -304,7 +321,8 @@ exports.getOverview = async (req, res) => {
             ipConflicts
         });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error('Get Overview Error:', err);
+        res.status(500).json({ message: 'Internal Server Error', error: err.message });
     }
 };
 

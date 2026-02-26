@@ -9,8 +9,8 @@ exports.getProjects = async (req, res) => {
             filter.$or = [{ managerId: req.user._id }, { teamMembers: req.user._id }];
         }
         const projects = await Project.find(filter)
-            .populate('managerId', 'name profilePhoto')
-            .populate('teamMembers', 'name profilePhoto department')
+            .populate('managerId', 'name profilePhoto email')
+            .populate('teamMembers', 'name profilePhoto department email')
             .sort({ updatedAt: -1 });
         res.json({ success: true, projects });
     } catch (err) {
@@ -22,9 +22,11 @@ exports.getProjects = async (req, res) => {
 exports.getProjectById = async (req, res) => {
     try {
         const project = await Project.findOne({ _id: req.params.id, organizationId: req.user.organizationId._id })
-            .populate('managerId', 'name profilePhoto')
-            .populate('teamMembers', 'name profilePhoto department')
-            .populate('tasks.assignedTo', 'name profilePhoto');
+            .populate('managerId', 'name profilePhoto email')
+            .populate('teamMembers', 'name profilePhoto department email')
+            .populate('tasks.assignedTo', 'name profilePhoto email')
+            .populate('tasks.createdBy', 'name email')
+            .populate('tasks.comments.userId', 'name profilePhoto email');
         if (!project) return res.status(404).json({ message: 'Project not found' });
         res.json({ success: true, project });
     } catch (err) {
@@ -79,9 +81,9 @@ exports.addTask = async (req, res) => {
     try {
         const project = await Project.findOneAndUpdate(
             { _id: req.params.id, organizationId: req.user.organizationId._id },
-            { $push: { tasks: req.body } },
+            { $push: { tasks: { ...req.body, createdBy: req.user._id } } },
             { new: true },
-        );
+        ).populate('tasks.assignedTo tasks.createdBy');
         res.json({ success: true, project });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -98,6 +100,33 @@ exports.updateTask = async (req, res) => {
             { $set: updateFields },
             { new: true },
         );
+        res.json({ success: true, project });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// POST /api/projects/:id/tasks/:taskId/comments
+exports.addComment = async (req, res) => {
+    try {
+        const project = await Project.findOneAndUpdate(
+            {
+                _id: req.params.id,
+                organizationId: req.user.organizationId._id,
+                'tasks._id': req.params.taskId
+            },
+            {
+                $push: {
+                    'tasks.$.comments': {
+                        userId: req.user._id,
+                        text: req.body.text
+                    }
+                }
+            },
+            { new: true }
+        ).populate('tasks.comments.userId', 'name profilePhoto email');
+
+        if (!project) return res.status(404).json({ message: 'Project or Task not found' });
         res.json({ success: true, project });
     } catch (err) {
         res.status(500).json({ message: err.message });

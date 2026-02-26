@@ -10,6 +10,7 @@ router.post('/', leaveController.applyLeave);
 router.get('/', leaveController.getLeaves);
 router.get('/balance', leaveController.getLeaveBalance);
 router.get('/balance/:userId', leaveController.getLeaveBalance);
+router.get('/pending-count', leaveController.getPendingCount);
 router.get('/:id', leaveController.getLeaveById);
 router.patch('/:id/review', requirePermission('canApproveLeave'), leaveController.reviewLeave);
 router.delete('/:id', leaveController.cancelLeave);

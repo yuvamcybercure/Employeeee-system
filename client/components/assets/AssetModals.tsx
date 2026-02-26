@@ -15,6 +15,7 @@ interface AssetModalProps {
 
 export function AssetModal({ isOpen, onClose, onSuccess, asset }: AssetModalProps) {
     const [loading, setLoading] = useState(false);
+    const [employees, setEmployees] = useState<any[]>([]);
     const [formData, setFormData] = useState({
         name: '',
         category: 'laptop',
@@ -22,8 +23,22 @@ export function AssetModal({ isOpen, onClose, onSuccess, asset }: AssetModalProp
         model: '',
         serialNumber: '',
         assetTag: '',
-        description: ''
+        description: '',
+        assignedTo: ''
     });
+
+    useEffect(() => {
+        if (isOpen) fetchEmployees();
+    }, [isOpen]);
+
+    const fetchEmployees = async () => {
+        try {
+            const { data } = await api.get('/users');
+            if (data.success) setEmployees(data.users);
+        } catch (err) {
+            console.error('Failed to fetch employees');
+        }
+    };
 
     useEffect(() => {
         if (asset) {
@@ -34,7 +49,8 @@ export function AssetModal({ isOpen, onClose, onSuccess, asset }: AssetModalProp
                 model: asset.model || '',
                 serialNumber: asset.serialNumber || '',
                 assetTag: asset.assetTag || '',
-                description: asset.description || ''
+                description: asset.description || '',
+                assignedTo: asset.assignedTo?._id || asset.assignedTo || ''
             });
         }
     }, [asset]);
@@ -148,14 +164,32 @@ export function AssetModal({ isOpen, onClose, onSuccess, asset }: AssetModalProp
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">Serial Number</label>
-                                    <input
-                                        value={formData.serialNumber}
-                                        onChange={e => setFormData({ ...formData, serialNumber: e.target.value })}
-                                        placeholder="S/N: XXXXXXXXXXXX"
-                                        className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-primary/5 transition-all font-bold text-slate-700 font-mono"
-                                    />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">Serial Number</label>
+                                        <input
+                                            value={formData.serialNumber}
+                                            onChange={e => setFormData({ ...formData, serialNumber: e.target.value })}
+                                            placeholder="S/N: XXXXXXXXXXXX"
+                                            className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-primary/5 transition-all font-bold text-slate-700 font-mono"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">Assign to Employee</label>
+                                        <div className="relative">
+                                            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                            <select
+                                                value={formData.assignedTo}
+                                                onChange={e => setFormData({ ...formData, assignedTo: e.target.value })}
+                                                className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-primary/5 transition-all font-bold text-slate-700 appearance-none cursor-pointer"
+                                            >
+                                                <option value="">Keep in Inventory (Unassigned)</option>
+                                                {employees.map(emp => (
+                                                    <option key={emp._id} value={emp._id}>{emp.name} ({emp.department || emp.role})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2">
@@ -199,7 +233,7 @@ export function AssignAssetModal({ isOpen, onClose, onSuccess, assetId }: any) {
 
     const fetchEmployees = async () => {
         try {
-            const { data } = await api.get('/users/organization-users');
+            const { data } = await api.get('/users');
             if (data.success) setEmployees(data.users);
         } catch (err) {
             console.error('Failed to fetch employees');

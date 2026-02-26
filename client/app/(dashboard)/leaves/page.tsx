@@ -22,8 +22,10 @@ import { LeaveDetailsModal } from '@/components/LeaveDetailsModal';
 import {
     Search,
     RefreshCcw,
-    Eye
+    Eye,
+    Settings
 } from 'lucide-react';
+import { OrgLeaveSettingsModal } from '@/components/dashboard/OrgLeaveSettingsModal';
 
 export default function LeavesPage() {
     const { user } = useAuth();
@@ -38,8 +40,11 @@ export default function LeavesPage() {
     const [filters, setFilters] = useState({
         month: new Date().getMonth() + 1,
         year: new Date().getFullYear(),
-        search: ''
+        search: '',
+        status: 'all',
+        department: 'all'
     });
+    const [showOrgSettings, setShowOrgSettings] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -62,11 +67,20 @@ export default function LeavesPage() {
         }
     };
 
-    const filteredLeaves = leaves.filter(l =>
-        (l.userId?.name || '').toLowerCase().includes(filters.search.toLowerCase()) ||
-        (l.reason || '').toLowerCase().includes(filters.search.toLowerCase()) ||
-        (l.type || '').toLowerCase().includes(filters.search.toLowerCase())
-    );
+    const filteredLeaves = leaves.filter(l => {
+        const matchesSearch =
+            (l.userId?.name || '').toLowerCase().includes(filters.search.toLowerCase()) ||
+            (l.userId?.email || '').toLowerCase().includes(filters.search.toLowerCase()) ||
+            (l.userId?.department || '').toLowerCase().includes(filters.search.toLowerCase()) ||
+            (l.reason || '').toLowerCase().includes(filters.search.toLowerCase());
+
+        const matchesStatus = filters.status === 'all' || l.status === filters.status;
+        const matchesDept = filters.department === 'all' || l.userId?.department === filters.department;
+
+        return matchesSearch && matchesStatus && matchesDept;
+    });
+
+    const departments = Array.from(new Set(leaves.map(l => l.userId?.department).filter(Boolean)));
 
     const handleReview = async (id: string, status: 'approved' | 'rejected') => {
         try {
@@ -100,6 +114,13 @@ export default function LeavesPage() {
                         </button>
                     )}
                 </div>
+
+                {showOrgSettings && (
+                    <OrgLeaveSettingsModal
+                        onClose={() => setShowOrgSettings(false)}
+                        onSuccess={fetchData}
+                    />
+                )}
 
                 {/* Balance & Analytics Dashboard */}
                 {user?.role === 'employee' && balances && (
@@ -141,12 +162,22 @@ export default function LeavesPage() {
                                 My Requests
                             </button>
                             {(user?.role === 'admin' || user?.role === 'superadmin') && (
-                                <button
-                                    onClick={() => setView('all')}
-                                    className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", view === 'all' ? "bg-white text-primary shadow-sm" : "text-slate-400 hover:text-slate-600")}
-                                >
-                                    All Approvals
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setView('all')}
+                                        className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", view === 'all' ? "bg-white text-primary shadow-sm" : "text-slate-400 hover:text-slate-600")}
+                                    >
+                                        All Approvals
+                                    </button>
+                                    {user?.role === 'superadmin' && (
+                                        <button
+                                            onClick={() => setShowOrgSettings(true)}
+                                            className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all"
+                                        >
+                                            <Settings className="inline mr-2" size={14} /> Org Quotas
+                                        </button>
+                                    )}
+                                </div>
                             )}
                         </div>
 
@@ -160,14 +191,26 @@ export default function LeavesPage() {
                             </select>
 
                             <select
-                                value={filters.month}
-                                onChange={(e) => setFilters(f => ({ ...f, month: parseInt(e.target.value) }))}
+                                value={filters.status}
+                                onChange={(e) => setFilters(f => ({ ...f, status: e.target.value }))}
                                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20"
                             >
-                                {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, i) => (
-                                    <option key={i} value={i + 1}>{m}</option>
-                                ))}
+                                <option value="all">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                                <option value="rejected">Rejected</option>
                             </select>
+
+                            {departments.length > 0 && (
+                                <select
+                                    value={filters.department}
+                                    onChange={(e) => setFilters(f => ({ ...f, department: e.target.value }))}
+                                    className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20"
+                                >
+                                    <option value="all">All Departments</option>
+                                    {departments.map((d: any) => <option key={d} value={d}>{d}</option>)}
+                                </select>
+                            )}
 
                             <button
                                 onClick={fetchData}
@@ -219,11 +262,17 @@ export default function LeavesPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5">
-                                                    <div className="flex items-center justify-center gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold">
-                                                            {leave.userId?.name?.charAt(0)}
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-xs">
+                                                            {leave.userId?.profilePhoto ? (
+                                                                <img src={leave.userId.profilePhoto} alt="" className="w-full h-full object-cover rounded-xl" />
+                                                            ) : leave.userId?.name?.charAt(0)}
                                                         </div>
-                                                        <span className="text-sm font-bold text-slate-700">{leave.userId?.name}</span>
+                                                        <div>
+                                                            <p className="text-xs font-black text-slate-800 leading-none">{leave.userId?.name || '---'}</p>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-1.5">{leave.userId?.department || 'Member'}</p>
+                                                            <p className="text-[9px] font-medium text-slate-400 lowercase">{leave.userId?.email}</p>
+                                                        </div>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5 text-center">

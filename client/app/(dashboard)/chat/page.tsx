@@ -30,6 +30,8 @@ export default function ChatPage() {
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
+    const [isScreenSharing, setIsScreenSharing] = useState(false);
+    const screenStreamRef = useRef<MediaStream | null>(null);
 
     const socketRef = useRef<any>(null);
     const typingTimeoutRef = useRef<any>(null);
@@ -39,6 +41,15 @@ export default function ChatPage() {
 
     const selectedConvRef = useRef<any>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    // Sync state with local tracks
+    useEffect(() => {
+        if (localVideoRef.current?.srcObject) {
+            const stream = localVideoRef.current.srcObject as MediaStream;
+            stream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
+            stream.getVideoTracks().forEach(track => { track.enabled = !isVideoOff; });
+        }
+    }, [isMuted, isVideoOff]);
 
     const playSound = (path: string, loop: boolean = true) => {
         if (audioRef.current) {
@@ -487,12 +498,61 @@ export default function ChatPage() {
         }
     };
 
+    const stopScreenShare = () => {
+        if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach(track => track.stop());
+            screenStreamRef.current = null;
+        }
+        setIsScreenSharing(false);
+
+        // Switch back to camera track
+        if (localVideoRef.current?.srcObject) {
+            const cameraTrack = (localVideoRef.current.srcObject as MediaStream).getVideoTracks()[0];
+            if (cameraTrack) {
+                pcsRef.current.forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                    if (sender) sender.replaceTrack(cameraTrack);
+                });
+            }
+        }
+    };
+
+    const toggleScreenShare = async () => {
+        if (!isScreenSharing) {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                screenStreamRef.current = stream;
+                setIsScreenSharing(true);
+
+                const screenTrack = stream.getVideoTracks()[0];
+
+                // Replace video track in all active peer connections
+                pcsRef.current.forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                    if (sender) sender.replaceTrack(screenTrack);
+                });
+
+                // Revert when user stops sharing via browser UI
+                screenTrack.onended = () => {
+                    stopScreenShare();
+                };
+
+            } catch (err) {
+                console.error('Failed to start screen share', err);
+            }
+        } else {
+            stopScreenShare();
+        }
+    };
+
     const leaveCall = () => {
         socketRef.current.emit('end_call', {
             to: call?.from || selectedConv?.id,
             isGroup: call?.isGroup,
             roomId: call?.roomId
         });
+
+        if (isScreenSharing) stopScreenShare();
 
         setCallAccepted(false);
         setCall(null);
@@ -550,6 +610,8 @@ export default function ChatPage() {
                 setIsMuted={setIsMuted}
                 isVideoOff={isVideoOff}
                 setIsVideoOff={setIsVideoOff}
+                isScreenSharing={isScreenSharing}
+                onToggleScreenShare={toggleScreenShare}
             />
 
             {/* Create Group Modal */}

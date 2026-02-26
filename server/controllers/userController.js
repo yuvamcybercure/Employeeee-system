@@ -51,10 +51,10 @@ exports.createUser = async (req, res) => {
 // PATCH /api/users/:id
 exports.updateUser = async (req, res) => {
     try {
-        const isSuperAdmin = req.user.role === 'superadmin';
+        const isAdmin = req.user.role === 'admin';
         const isSelf = String(req.user._id) === String(req.params.id);
 
-        if (!isSuperAdmin && !isSelf) {
+        if (!isSuperAdmin && !isAdmin && !isSelf) {
             return res.status(403).json({ success: false, message: 'Not authorized to update this profile' });
         }
 
@@ -63,7 +63,7 @@ exports.updateUser = async (req, res) => {
             'religion', 'maritalStatus', 'address', 'emergencyContact'
         ];
 
-        if (isSuperAdmin) {
+        if (isSuperAdmin || isAdmin) {
             allowedFields = [
                 ...allowedFields,
                 'email', 'password', 'department', 'designation', 'isActive',
@@ -79,6 +79,20 @@ exports.updateUser = async (req, res) => {
         // If password is being updated, sync plainPassword
         if (updates.password) {
             updates.plainPassword = updates.password;
+        }
+
+        // Security Barriers for Admin
+        if (isAdmin && !isSuperAdmin) {
+            // Admin cannot update themselves (to prevent self-privilege escalation)
+            if (isSelf) {
+                const sensitiveFields = ['role', 'permissionOverrides', 'isActive'];
+                sensitiveFields.forEach(f => delete updates[f]);
+            }
+
+            // Admin cannot create/promote to Superadmin
+            if (updates.role === 'superadmin') {
+                delete updates.role;
+            }
         }
 
         const user = await User.findOne({ _id: req.params.id, organizationId: req.user.organizationId._id });

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Building2, Globe, Palette, Loader2, CheckCircle2 } from 'lucide-react';
+import { X, Save, Building2, Globe, Palette, Loader2, CheckCircle2, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface OrgSettingsModalProps {
@@ -19,13 +19,29 @@ export function OrgSettingsModal({ isOpen, onClose }: OrgSettingsModalProps) {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState('');
+    const [logo, setLogo] = useState<string | null>(null);
+    const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
     useEffect(() => {
         if (user?.organizationId) {
             setName(user.organizationId.name);
             setSlug(user.organizationId.slug);
+            setLogoPreview(user.organizationId.logo || null);
         }
     }, [user, isOpen]);
+
+    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64 = reader.result as string;
+                setLogo(base64);
+                setLogoPreview(base64);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,7 +54,8 @@ export function OrgSettingsModal({ isOpen, onClose }: OrgSettingsModalProps) {
         try {
             const { data } = await api.patch(`/organization/${user.organizationId._id}`, {
                 name,
-                slug: slug.toLowerCase().replace(/\s+/g, '-')
+                slug: slug.toLowerCase().replace(/\s+/g, '-'),
+                logo: logo === null ? null : (logo || undefined)
             });
 
             if (data.success) {
@@ -105,6 +122,38 @@ export function OrgSettingsModal({ isOpen, onClose }: OrgSettingsModalProps) {
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
                                     />
+                                </div>
+
+                                <div className="space-y-4">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                        <ImageIcon size={14} /> Organization Logo
+                                    </label>
+                                    <div className="flex items-center gap-6 p-6 bg-slate-50 border border-slate-200 rounded-[2rem]">
+                                        <div className="relative group">
+                                            <div className="w-24 h-24 rounded-3xl bg-white border-2 border-slate-200 overflow-hidden flex items-center justify-center text-slate-300">
+                                                {logoPreview ? (
+                                                    <img src={logoPreview} alt="Preview" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <Building2 size={32} />
+                                                )}
+                                            </div>
+                                            <label className="absolute inset-0 flex items-center justify-center bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-3xl">
+                                                <input type="file" className="hidden" accept="image/*" onChange={handleLogoChange} />
+                                                <Upload size={24} className="text-white" />
+                                            </label>
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                            <p className="text-sm font-bold text-slate-700">Company Branding</p>
+                                            <p className="text-[10px] font-medium text-slate-400">PNG or JPG. Recommened size 512x512px.</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setLogo(null); setLogoPreview(null); }}
+                                                className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:text-red-500 transition-colors flex items-center gap-1 mt-2"
+                                            >
+                                                <Trash2 size={12} /> Remove Logo
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2">

@@ -67,12 +67,19 @@ export default function AttendancePage() {
         year: new Date().getFullYear()
     });
 
+    const [users, setUsers] = useState<any[]>([]);
+    const [selectedUserId, setSelectedUserId] = useState<string>('');
+    const [userSearchTerm, setUserSearchTerm] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [selectedLog, setSelectedLog] = useState<any>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const queryParams = `?month=${filter.month}&year=${filter.year}`;
+            let queryParams = `?month=${filter.month}&year=${filter.year}`;
+            if (isAdmin && selectedUserId) {
+                queryParams += `&userId=${selectedUserId}`;
+            }
 
             // Fetch history
             const historyRes = await api.get(`/attendance/history${queryParams}`);
@@ -95,7 +102,23 @@ export default function AttendancePage() {
         } finally {
             setLoading(false);
         }
-    }, [filter, isAdmin]);
+    }, [filter, isAdmin, selectedUserId]);
+
+    const fetchUsers = useCallback(async () => {
+        if (!isAdmin) return;
+        try {
+            const { data } = await api.get('/users');
+            if (data.success) {
+                setUsers(data.users.filter((u: any) => u.role === 'employee'));
+            }
+        } catch (err) {
+            console.error('Failed to fetch users', err);
+        }
+    }, [isAdmin]);
+
+    useEffect(() => {
+        fetchUsers();
+    }, [fetchUsers]);
 
     useEffect(() => {
         fetchData();
@@ -196,6 +219,106 @@ export default function AttendancePage() {
                             >
                                 <RefreshCcw size={18} className={cn(loading && "animate-spin")} />
                             </button>
+
+                            {isAdmin && (
+                                <div className="relative min-w-[240px]">
+                                    <div
+                                        className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl cursor-text focus-within:ring-2 focus-within:ring-primary/20 transition-all"
+                                        onClick={() => setIsDropdownOpen(true)}
+                                    >
+                                        <Search size={14} className="text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Find employee..."
+                                            value={isDropdownOpen ? userSearchTerm : (users.find(u => u._id === selectedUserId)?.name || 'All Employees')}
+                                            onChange={(e) => {
+                                                setUserSearchTerm(e.target.value);
+                                                setIsDropdownOpen(true);
+                                            }}
+                                            onFocus={() => setIsDropdownOpen(true)}
+                                            className="w-full bg-transparent text-xs font-bold outline-none placeholder:text-slate-400"
+                                        />
+                                        {selectedUserId && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedUserId('');
+                                                    setUserSearchTerm('');
+                                                    setIsDropdownOpen(false);
+                                                }}
+                                                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400"
+                                            >
+                                                <RefreshCcw size={12} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <AnimatePresence>
+                                        {isDropdownOpen && (
+                                            <>
+                                                <div
+                                                    className="fixed inset-0 z-10"
+                                                    onClick={() => {
+                                                        setIsDropdownOpen(false);
+                                                        setUserSearchTerm('');
+                                                    }}
+                                                />
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl z-20 overflow-hidden max-h-[300px] flex flex-col"
+                                                >
+                                                    <div className="overflow-y-auto p-2 space-y-1">
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedUserId('');
+                                                                setUserSearchTerm('');
+                                                                setIsDropdownOpen(false);
+                                                            }}
+                                                            className={cn(
+                                                                "w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all",
+                                                                !selectedUserId ? "bg-primary text-white" : "text-slate-600 hover:bg-slate-50"
+                                                            )}
+                                                        >
+                                                            All Employees
+                                                        </button>
+                                                        {users
+                                                            .filter(u => u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) || (u.employeeId && u.employeeId.toLowerCase().includes(userSearchTerm.toLowerCase())))
+                                                            .map(u => (
+                                                                <button
+                                                                    key={u._id}
+                                                                    onClick={() => {
+                                                                        setSelectedUserId(u._id);
+                                                                        setUserSearchTerm('');
+                                                                        setIsDropdownOpen(false);
+                                                                    }}
+                                                                    className={cn(
+                                                                        "w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between group",
+                                                                        selectedUserId === u._id ? "bg-primary text-white" : "text-slate-600 hover:bg-slate-50"
+                                                                    )}
+                                                                >
+                                                                    <span>{u.name}</span>
+                                                                    <span className={cn(
+                                                                        "text-[10px] uppercase font-black tracking-tighter",
+                                                                        selectedUserId === u._id ? "text-white/60" : "text-slate-300 group-hover:text-slate-400"
+                                                                    )}>
+                                                                        {u.employeeId}
+                                                                    </span>
+                                                                </button>
+                                                            ))}
+                                                        {users.filter(u => u.name.toLowerCase().includes(userSearchTerm.toLowerCase())).length === 0 && (
+                                                            <div className="px-4 py-8 text-center">
+                                                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No results</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            </>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            )}
 
                             <div className="relative flex-1 min-w-[200px]">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />

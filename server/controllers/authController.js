@@ -4,6 +4,27 @@ const RolePermission = require('../models/RolePermission');
 const PasswordResetRequest = require('../models/PasswordResetRequest');
 const { logActivity } = require('../middleware/logger');
 
+const mergePermissions = async (user) => {
+    if (user.role === 'superadmin') return {}; // frontend handles superadmin
+
+    const rolePerms = await RolePermission.findOne({
+        role: user.role,
+        organizationId: user.organizationId?._id || user.organizationId
+    });
+
+    const basePermissions = rolePerms?.permissions ? rolePerms.permissions.toObject() : {};
+    const overrides = user.permissionOverrides || {};
+
+    const merged = { ...basePermissions };
+    Object.keys(overrides).forEach(key => {
+        if (overrides[key] !== null) merged[key] = overrides[key];
+
+    });
+
+    return merged;
+
+};
+
 const signToken = (id) =>
     jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
 
@@ -25,7 +46,7 @@ exports.login = async (req, res) => {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
 
-        const user = await User.findOne({ email }).select('+password').populate('organizationId', 'name slug settings');
+        const user = await User.findOne({ email }).select('+password').populate('organizationId', 'name slug logo settings');
         if (!user || !(await user.comparePassword(password))) {
             return res.status(401).json({ message: 'Invalid email or password' });
         }
@@ -34,8 +55,8 @@ exports.login = async (req, res) => {
         user.lastLogin = new Date();
         await user.save({ validateBeforeSave: false });
 
-        // Fetch role permissions to send with user data
-        const rolePerms = await RolePermission.findOne({ role: user.role });
+        // Fetch and merge permissions
+        const permissions = await mergePermissions(user);
         await logActivity(user._id, 'LOGIN', 'auth', { email }, req);
 
         const token = signToken(user._id);
@@ -49,7 +70,7 @@ exports.login = async (req, res) => {
 
         const userObj = user.toSafeJSON ? user.toSafeJSON() : user.toObject();
         delete userObj.password;
-        res.json({ success: true, user: userObj, permissions: rolePerms?.permissions || {} });
+        res.json({ success: true, user: userObj, permissions });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -65,8 +86,8 @@ exports.logout = async (req, res) => {
 // GET /api/auth/me
 exports.getMe = async (req, res) => {
     try {
-        const rolePerms = await RolePermission.findOne({ role: req.user.role });
-        res.json({ success: true, user: req.user, permissions: rolePerms?.permissions || {} });
+        const permissions = await mergePermissions(req.user);
+        res.json({ success: true, user: req.user, permissions });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

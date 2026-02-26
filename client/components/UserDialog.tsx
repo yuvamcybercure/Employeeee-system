@@ -27,6 +27,18 @@ export function UserDialog({ user, onClose, onSuccess }: UserDialogProps) {
             casual: { yearly: 12, monthly: 1 },
             wfh: { yearly: 24, monthly: 2 },
             unpaid: { yearly: 365, monthly: 31 }
+        },
+        permissionOverrides: user?.permissionOverrides || {
+            canViewPayroll: null,
+            canEditAttendance: null,
+            canApproveLeave: null,
+            canViewReports: null,
+            canExportData: null,
+            canManageProjects: null,
+            canManagePolicies: null,
+            canManageAssets: null,
+            canSendMessages: null,
+            canViewSuggestions: null,
         }
     });
 
@@ -225,8 +237,52 @@ export function UserDialog({ user, onClose, onSuccess }: UserDialogProps) {
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700 ml-1">Status</label>
+                        <div className="md:col-span-2 space-y-4 pt-6 mt-4 border-t border-slate-100">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Feature Access Overrides</h3>
+                                <p className="text-[10px] text-slate-400 font-bold">Overrides role-based defaults for this user</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {Object.keys(formData.permissionOverrides).map((perm) => (
+                                    <div key={perm} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <span className="text-xs font-bold text-slate-700 capitalize">
+                                            {perm.replace(/([A-Z])/g, ' $1').replace('can ', '').trim()}
+                                        </span>
+                                        <div className="flex bg-slate-200 p-1 rounded-xl gap-1">
+                                            {[
+                                                { label: 'Default', value: null, color: 'transparent' },
+                                                { label: 'Allow', value: true, color: 'bg-emerald-500' },
+                                                { label: 'Deny', value: false, color: 'bg-red-500' }
+                                            ].map((opt) => (
+                                                <button
+                                                    key={opt.label}
+                                                    type="button"
+                                                    onClick={() => setFormData({
+                                                        ...formData,
+                                                        permissionOverrides: {
+                                                            ...formData.permissionOverrides,
+                                                            [perm]: opt.value
+                                                        }
+                                                    })}
+                                                    className={cn(
+                                                        "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all",
+                                                        formData.permissionOverrides[perm as keyof typeof formData.permissionOverrides] === opt.value
+                                                            ? `${opt.color === 'transparent' ? 'bg-white text-slate-600 shadow-sm' : opt.color + ' text-white shadow-sm'}`
+                                                            : "text-slate-400 hover:text-slate-600"
+                                                    )}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 pt-4">
+                            <label className="text-sm font-bold text-slate-700 ml-1">Account Status</label>
                             <div className="flex gap-4">
                                 <button
                                     type="button"

@@ -1,10 +1,11 @@
 const Organization = require('../models/Organization');
 const { logActivity } = require('../middleware/logger');
+const { uploadBase64 } = require('../config/cloudinary');
 
 // PATCH /api/organization/:id
 exports.updateOrganization = async (req, res) => {
     try {
-        const { name, slug, settings } = req.body;
+        const { name, slug, settings, logo } = req.body;
         const org = await Organization.findById(req.params.id);
 
         if (!org) return res.status(404).json({ message: 'Organization not found' });
@@ -12,6 +13,13 @@ exports.updateOrganization = async (req, res) => {
         if (name) org.name = name;
         if (slug) org.slug = slug;
         if (settings) org.settings = { ...org.settings, ...settings };
+
+        if (logo && logo.startsWith('data:image')) {
+            const uploadResult = await uploadBase64(logo, 'branding');
+            org.logo = uploadResult.url;
+        } else if (logo === null) {
+            org.logo = '';
+        }
 
         await org.save();
 

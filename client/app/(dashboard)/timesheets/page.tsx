@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { useAuth } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     FileText,
@@ -28,12 +29,15 @@ import { TaskDetailsModal } from '@/components/timesheet/TaskDetailsModal';
 import { format } from 'date-fns';
 
 export default function TimesheetsPage() {
+    const { user, hasPermission } = useAuth();
     const [entries, setEntries] = useState<any[]>([]);
     const [projects, setProjects] = useState<any[]>([]);
+    const [employees, setEmployees] = useState<any[]>([]);
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [selectedTask, setSelectedTask] = useState<any>(null);
+    const [selectedEmployee, setSelectedEmployee] = useState<string>('');
     const [filters, setFilters] = useState({
         date: format(new Date(), 'yyyy-MM-dd'),
         month: '',
@@ -46,7 +50,13 @@ export default function TimesheetsPage() {
     useEffect(() => {
         fetchInitialData();
         fetchStats();
-    }, [filters]);
+    }, [filters, selectedEmployee]);
+
+    useEffect(() => {
+        if (user?.role === 'admin' || user?.role === 'superadmin') {
+            fetchEmployees();
+        }
+    }, [user]);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -64,6 +74,15 @@ export default function TimesheetsPage() {
         return () => clearInterval(interval);
     }, [entries]);
 
+    const fetchEmployees = async () => {
+        try {
+            const res = await api.get('/users');
+            setEmployees(res.data.users || []);
+        } catch (err) {
+            console.error('Failed to fetch employees');
+        }
+    };
+
     const fetchInitialData = async () => {
         setLoading(true);
         try {
@@ -72,6 +91,7 @@ export default function TimesheetsPage() {
             if (filters.month) queryParams.append('month', filters.month);
             if (filters.year) queryParams.append('year', filters.year);
             if (filters.search) queryParams.append('search', filters.search);
+            if (selectedEmployee) queryParams.append('userId', selectedEmployee);
 
             const [timesheetsRes, projectsRes] = await Promise.all([
                 api.get(`/timesheets?${queryParams.toString()}`),
@@ -88,7 +108,9 @@ export default function TimesheetsPage() {
 
     const fetchStats = async () => {
         try {
-            const res = await api.get('/timesheets/stats');
+            const queryParams = new URLSearchParams();
+            if (selectedEmployee) queryParams.append('userId', selectedEmployee);
+            const res = await api.get(`/timesheets/stats?${queryParams.toString()}`);
             setStats(res.data);
         } catch (err) {
             console.error('Failed to fetch stats');
@@ -121,13 +143,35 @@ export default function TimesheetsPage() {
         return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     };
 
+    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+
     return (
         <ProtectedRoute allowedRoles={['employee', 'admin', 'superadmin']}>
             <div className="space-y-10 pb-20">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div>
-                        <h1 className="text-3xl font-[1000] text-slate-900 tracking-tight">Productivity Hub</h1>
-                        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">Manage your tasks and track real-time progress</p>
+                    <div className="flex items-center gap-6">
+                        <div>
+                            <h1 className="text-3xl font-[1000] text-slate-900 tracking-tight">Productivity Hub</h1>
+                            <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">Manage your tasks and track real-time progress</p>
+                        </div>
+                        {isAdmin && (
+                            <div className="hidden lg:block h-12 w-px bg-slate-200" />
+                        )}
+                        {isAdmin && (
+                            <div className="hidden lg:flex flex-col">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Active Cluster</span>
+                                <select
+                                    className="bg-white border border-slate-100 px-4 py-2.5 rounded-xl text-xs font-black uppercase text-slate-600 outline-none focus:ring-4 focus:ring-primary/5 shadow-sm transition-all"
+                                    value={selectedEmployee}
+                                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                                >
+                                    <option value="">Full Team View</option>
+                                    {employees.map(emp => (
+                                        <option key={emp._id} value={emp._id}>{emp.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
                     <button
                         onClick={() => setShowModal(true)}
@@ -187,12 +231,24 @@ export default function TimesheetsPage() {
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
                         <input
                             type="text"
-                            placeholder="Find tasks..."
+                            placeholder="Find tasks or deliverables..."
                             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-100 rounded-xl outline-none focus:ring-4 focus:ring-primary/5 transition-all text-xs font-bold text-slate-600 shadow-sm"
                             value={filters.search}
                             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                         />
                     </div>
+                    {isAdmin && (
+                        <select
+                            className="px-4 py-3 bg-white border border-slate-100 rounded-xl outline-none text-xs font-bold text-slate-600 shadow-sm appearance-none cursor-pointer"
+                            value={selectedEmployee}
+                            onChange={(e) => setSelectedEmployee(e.target.value)}
+                        >
+                            <option value="">All Employees</option>
+                            {employees.map(emp => (
+                                <option key={emp._id} value={emp._id}>{emp.name}</option>
+                            ))}
+                        </select>
+                    )}
                     <div className="flex gap-2">
                         <input
                             type="date"

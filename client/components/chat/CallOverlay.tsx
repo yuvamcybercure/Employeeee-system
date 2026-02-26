@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, Maximize2, Minimize2 } from 'lucide-react';
+import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, Maximize2, Minimize2, MonitorUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CallOverlayProps {
@@ -22,17 +22,24 @@ interface CallOverlayProps {
     setIsMuted: (val: boolean) => void;
     isVideoOff: boolean;
     setIsVideoOff: (val: boolean) => void;
+    isScreenSharing: boolean;
+    onToggleScreenShare: () => void;
 }
 
-const RemoteVideo = ({ stream, name }: { stream: MediaStream, name: string }) => {
+const RemoteVideo = ({ stream, name, isAudioOnly }: { stream: MediaStream, name: string, isAudioOnly?: boolean }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
-        if (videoRef.current) videoRef.current.srcObject = stream;
+        if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+        }
     }, [stream]);
 
     return (
-        <div className="relative w-full h-full bg-slate-800 rounded-3xl overflow-hidden border-2 border-white/10 group">
+        <div className={cn(
+            "relative w-full h-full bg-slate-800 rounded-3xl overflow-hidden border-2 border-white/10 group",
+            isAudioOnly && "hidden"
+        )}>
             <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
             <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-xl">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -52,7 +59,9 @@ export function CallOverlay({
     isMuted,
     setIsMuted,
     isVideoOff,
-    setIsVideoOff
+    setIsVideoOff,
+    isScreenSharing,
+    onToggleScreenShare
 }: CallOverlayProps) {
     const [isMaximized, setIsMaximized] = useState(false);
 
@@ -94,6 +103,12 @@ export function CallOverlay({
                         </div>
                     ) : (
                         <div className="flex flex-col items-center gap-6">
+                            {/* Still render remote videos for audio even if hidden to ensure audio plays */}
+                            <div className="hidden">
+                                {Array.from(remoteStreams.entries()).map(([peerId, stream]) => (
+                                    <RemoteVideo key={peerId} stream={stream} name="" isAudioOnly />
+                                ))}
+                            </div>
                             <div className="w-32 h-32 rounded-full bg-primary/20 flex items-center justify-center border-4 border-primary/30 animate-pulse">
                                 <span className="text-4xl font-black text-white uppercase">{call?.name.charAt(0)}</span>
                             </div>
@@ -157,15 +172,26 @@ export function CallOverlay({
                                     {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
                                 </button>
                                 {call?.type === 'video' && (
-                                    <button
-                                        onClick={() => setIsVideoOff(!isVideoOff)}
-                                        className={cn(
-                                            "w-12 h-12 rounded-2xl flex items-center justify-center transition-all border",
-                                            isVideoOff ? "bg-red-500/20 border-red-500/30 text-red-500" : "bg-white/10 border-white/20 text-white hover:bg-white/20"
-                                        )}
-                                    >
-                                        {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
-                                    </button>
+                                    <>
+                                        <button
+                                            onClick={() => setIsVideoOff(!isVideoOff)}
+                                            className={cn(
+                                                "w-12 h-12 rounded-2xl flex items-center justify-center transition-all border",
+                                                isVideoOff ? "bg-red-500/20 border-red-500/30 text-red-500" : "bg-white/10 border-white/20 text-white hover:bg-white/20"
+                                            )}
+                                        >
+                                            {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
+                                        </button>
+                                        <button
+                                            onClick={onToggleScreenShare}
+                                            className={cn(
+                                                "w-12 h-12 rounded-2xl flex items-center justify-center transition-all border",
+                                                isScreenSharing ? "bg-primary/20 border-primary/30 text-primary" : "bg-white/10 border-white/20 text-white hover:bg-white/20"
+                                            )}
+                                        >
+                                            <MonitorUp size={20} />
+                                        </button>
+                                    </>
                                 )}
                                 <button
                                     onClick={onEnd}

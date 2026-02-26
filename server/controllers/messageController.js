@@ -232,3 +232,41 @@ exports.getConversations = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
+// GET /api/messages/unread-count
+exports.getUnreadCount = async (req, res) => {
+    try {
+        const orgId = req.user.organizationId._id;
+        const currentUserId = req.user._id;
+
+        // 1. Unread DM counts
+        const dmUnread = await Message.countDocuments({
+            organizationId: orgId,
+            receiverId: currentUserId,
+            'readBy.userId': { $ne: currentUserId },
+            deletedFor: { $ne: currentUserId }
+        });
+
+        // 2. Unread Group counts
+        // Need to find which groups the user is in first
+        const userGroups = await ChatGroup.find({
+            organizationId: orgId,
+            members: currentUserId,
+            isActive: true
+        }).select('_id');
+
+        const groupIds = userGroups.map(g => g._id);
+
+        const groupUnread = await Message.countDocuments({
+            organizationId: orgId,
+            groupId: { $in: groupIds },
+            senderId: { $ne: currentUserId },
+            'readBy.userId': { $ne: currentUserId },
+            deletedFor: { $ne: currentUserId }
+        });
+
+        res.json({ success: true, count: dmUnread + groupUnread });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};

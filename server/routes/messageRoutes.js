@@ -5,6 +5,7 @@ const { protect } = require('../middleware/auth');
 
 router.use(protect);
 
+router.get('/unread-count', messageController.getUnreadCount);
 router.get('/conversations', messageController.getConversations);
 router.get('/:receiverId', messageController.getMessages);
 router.get('/groups/:groupId', messageController.getGroupMessages);

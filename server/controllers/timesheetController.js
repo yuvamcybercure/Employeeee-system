@@ -4,16 +4,24 @@ const { logActivity } = require('../middleware/logger');
 // GET /api/timesheets
 exports.getTimesheets = async (req, res) => {
     try {
-        const { date, month, year, search, projectId, status } = req.query;
-        const filter = {
+        const { date, month, year, search, projectId, status, userId: targetUserId } = req.query;
+        let filter = {
             organizationId: req.user.organizationId._id,
-            $or: [
-                { userId: req.user._id },
-                { collaborators: req.user._id }
-            ]
         };
 
-        // Remove individual filter for role as we now use $or for creators and collaborators
+        // Role-based visibility logic
+        if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+            if (targetUserId) {
+                filter.userId = targetUserId;
+            }
+            // If no targetUserId, Admin sees all in organization (handled by removing restricted userId filter)
+        } else {
+            // Employees only see their own or collaborative tasks
+            filter.$or = [
+                { userId: req.user._id },
+                { collaborators: req.user._id }
+            ];
+        }
 
         // Default: Current Day if no filters provided
         if (!date && !month && !year && !search) {
@@ -53,18 +61,23 @@ exports.getTimesheets = async (req, res) => {
 // GET /api/timesheets/stats
 exports.getTimesheetStats = async (req, res) => {
     try {
-        const userId = req.user._id;
+        const { userId: targetUserId } = req.query;
         const now = new Date();
         const todayStr = now.toISOString().split('T')[0];
         const monthStr = todayStr.substring(0, 7); // YYYY-MM
 
-        const filter = {
+        let filter = {
             organizationId: req.user.organizationId._id,
-            $or: [
+        };
+
+        if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+            filter.userId = targetUserId || req.user._id;
+        } else {
+            filter.$or = [
                 { userId: req.user._id },
                 { collaborators: req.user._id }
-            ]
-        };
+            ];
+        }
 
         const [todayTasks, monthTasks] = await Promise.all([
             Timesheet.find({ ...filter, date: todayStr }),
