@@ -35,28 +35,18 @@ api.interceptors.request.use((config) => {
 // Rewrite localhost URLs in API responses to the actual backend URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || '';
 
-function rewriteUrls(obj: any): any {
-    if (!obj || !BACKEND_URL) return obj;
-    if (typeof obj === 'string') {
-        if (obj.includes('localhost:5000')) {
-            return obj.replace(/https?:\/\/localhost:5000/g, BACKEND_URL);
-        }
-        return obj;
-    }
-    if (Array.isArray(obj)) return obj.map(rewriteUrls);
-    if (typeof obj === 'object') {
-        const result: any = {};
-        for (const key in obj) {
-            result[key] = rewriteUrls(obj[key]);
-        }
-        return result;
-    }
-    return obj;
-}
-
 api.interceptors.response.use((response) => {
-    if (response.data) {
-        response.data = rewriteUrls(response.data);
+    if (response.data && BACKEND_URL) {
+        try {
+            const json = JSON.stringify(response.data);
+            if (json.includes('localhost:5000')) {
+                response.data = JSON.parse(
+                    json.replace(/https?:\/\/localhost:5000/g, BACKEND_URL)
+                );
+            }
+        } catch (e) {
+            // If stringify/parse fails, leave data as-is
+        }
     }
     return response;
 });
