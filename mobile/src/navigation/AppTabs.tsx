@@ -19,6 +19,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import UsersScreen from '../screens/UsersScreen';
 import ProjectsScreen from '../screens/ProjectsScreen';
+import ProjectDetailScreen from '../screens/ProjectDetailScreen';
 import TimesheetsScreen from '../screens/TimesheetsScreen';
 import MoreScreen from '../screens/MoreScreen';
 import FinanceScreen from '../screens/FinanceScreen';
@@ -27,6 +28,17 @@ import PoliciesScreen from '../screens/PoliciesScreen';
 import SuggestionsScreen from '../screens/SuggestionsScreen';
 import LogsScreen from '../screens/LogsScreen';
 import PermissionsScreen from '../screens/PermissionsScreen';
+import MasterOrganizationsScreen from '../screens/MasterOrganizationsScreen';
+import MasterUsersScreen from '../screens/MasterUsersScreen';
+import MasterAnalyticsScreen from '../screens/MasterAnalyticsScreen';
+import MasterAuditScreen from '../screens/MasterAuditScreen';
+import MasterPulseScreen from '../screens/MasterPulseScreen';
+import AssetInventoryScreen from '../screens/AssetInventoryScreen';
+import DocumentsScreen from '../screens/DocumentsScreen';
+import GeofenceSettingsScreen from '../screens/GeofenceSettingsScreen';
+import AdminResetRequestsScreen from '../screens/AdminResetRequestsScreen';
+import OrgSettingsScreen from '../screens/OrgSettingsScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
 
 // Stack navigators for each tab
 const HomeStack = createNativeStackNavigator();
@@ -41,9 +53,9 @@ function HomeStackScreen() {
 
   const DashboardComponent =
     role === 'master-admin' ? MasterDashboard :
-    role === 'superadmin' ? SuperadminDashboard :
-    role === 'admin' ? AdminDashboard :
-    EmployeeDashboard;
+      role === 'superadmin' ? SuperadminDashboard :
+        role === 'admin' ? AdminDashboard :
+          EmployeeDashboard;
 
   return (
     <HomeStack.Navigator screenOptions={{ headerShown: false }}>
@@ -56,6 +68,7 @@ function AttendanceStackScreen() {
   return (
     <AttendanceStack.Navigator screenOptions={{ headerShown: false }}>
       <AttendanceStack.Screen name="AttendanceMain" component={AttendanceScreen} />
+      <AttendanceStack.Screen name="GeofenceSettings" component={GeofenceSettingsScreen} />
     </AttendanceStack.Navigator>
   );
 }
@@ -75,6 +88,7 @@ function MoreStackScreen() {
       <MoreStack.Screen name="MoreMenu" component={MoreScreen} />
       <MoreStack.Screen name="Leaves" component={LeavesScreen} />
       <MoreStack.Screen name="Projects" component={ProjectsScreen} />
+      <MoreStack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
       <MoreStack.Screen name="Timesheets" component={TimesheetsScreen} />
       <MoreStack.Screen name="Users" component={UsersScreen} />
       <MoreStack.Screen name="Finance" component={FinanceScreen} />
@@ -83,6 +97,17 @@ function MoreStackScreen() {
       <MoreStack.Screen name="Suggestions" component={SuggestionsScreen} />
       <MoreStack.Screen name="Logs" component={LogsScreen} />
       <MoreStack.Screen name="Permissions" component={PermissionsScreen} />
+      <MoreStack.Screen name="MasterOrganizations" component={MasterOrganizationsScreen} />
+      <MoreStack.Screen name="MasterUsers" component={MasterUsersScreen} />
+      <MoreStack.Screen name="MasterAnalytics" component={MasterAnalyticsScreen} />
+      <MoreStack.Screen name="MasterAudit" component={MasterAuditScreen} />
+      <MoreStack.Screen name="MasterPulse" component={MasterPulseScreen} />
+      <MoreStack.Screen name="AssetInventory" component={AssetInventoryScreen} />
+      <MoreStack.Screen name="Documents" component={DocumentsScreen} />
+      <MoreStack.Screen name="GeofenceSettings" component={GeofenceSettingsScreen} />
+      <MoreStack.Screen name="AdminResetRequests" component={AdminResetRequestsScreen} />
+      <MoreStack.Screen name="OrgSettings" component={OrgSettingsScreen} />
+      <MoreStack.Screen name="Analytics" component={AnalyticsScreen} />
     </MoreStack.Navigator>
   );
 }
@@ -92,6 +117,7 @@ function ProfileStackScreen() {
     <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
       <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
       <ProfileStack.Screen name="Settings" component={SettingsScreen} />
+      <ProfileStack.Screen name="Documents" component={DocumentsScreen} />
     </ProfileStack.Navigator>
   );
 }

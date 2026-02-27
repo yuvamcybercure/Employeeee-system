@@ -22,14 +22,18 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  hasPermission: (permission: string) => boolean;
+  switchContext: (token: string, newUser: User) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   login: async () => ({ success: false }),
-  logout: async () => {},
-  refreshUser: async () => {},
+  logout: async () => { },
+  refreshUser: async () => { },
+  hasPermission: () => false,
+  switchContext: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -52,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (err) {
-      await SecureStore.deleteItemAsync('token').catch(() => {});
+      await SecureStore.deleteItemAsync('token').catch(() => { });
     } finally {
       setLoading(false);
     }
@@ -77,8 +81,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await api.post('/auth/logout');
-    } catch (e) {}
-    await SecureStore.deleteItemAsync('token').catch(() => {});
+    } catch (e) { }
+    await SecureStore.deleteItemAsync('token').catch(() => { });
     setUser(null);
   };
 
@@ -88,11 +92,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.success) {
         setUser({ ...data.user, permissions: data.permissions });
       }
-    } catch (e) {}
+    } catch (e) { }
+  };
+
+  const hasPermission = (permission: string): boolean => {
+    if (!user) return false;
+    if (user.role === 'master-admin' || user.role === 'superadmin') return true;
+    return !!user.permissions?.[permission];
+  };
+
+  const switchContext = async (token: string, newUser: User) => {
+    await SecureStore.setItemAsync('token', token);
+    setUser({ ...newUser, permissions: newUser.permissions || {} });
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser, hasPermission, switchContext }}>
       {children}
     </AuthContext.Provider>
   );

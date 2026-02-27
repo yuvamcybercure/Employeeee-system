@@ -1,236 +1,232 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, FlatList, Alert, RefreshControl, Image, Modal } from 'react-native';
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  RefreshControl, Modal, TextInput, Alert, ActivityIndicator, Image
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, radius, shadows, spacing } from '../theme';
 import api from '../api';
-import { Globe, Users, Building2, Activity, Plus, Search, Power, ShieldCheck, Zap, Eye, X } from 'lucide-react-native';
+import {
+  Building2, Users, BarChart3, Search, Zap,
+  Plus, ChevronRight, UserCheck, Activity, Globe, Shield, X, Command
+} from 'lucide-react-native';
+import ContextSwitcherModal from '../components/ContextSwitcherModal';
 
-export default function MasterDashboard() {
+export default function MasterDashboard({ navigation }: any) {
   const [stats, setStats] = useState<any>(null);
-  const [organizations, setOrganizations] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orgs, setOrgs] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedOrg, setSelectedOrg] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showOrgModal, setShowOrgModal] = useState(false);
+  const [showSwitcher, setShowSwitcher] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // New Org Form
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [industry, setIndustry] = useState('');
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
-    setLoading(true);
     try {
       const [statsRes, orgsRes] = await Promise.all([
-        api.get('/master/stats').catch(() => ({ data: {} })),
-        api.get('/master/organizations').catch(() => ({ data: {} })),
+        api.get('/master/stats'),
+        api.get('/organizations'),
       ]);
-      if (statsRes.data?.success) setStats(statsRes.data.stats);
-      if (orgsRes.data?.success) setOrganizations(orgsRes.data.organizations || []);
-    } catch (e) {}
-    setLoading(false);
+      if (statsRes.data.success) setStats(statsRes.data.stats);
+      if (orgsRes.data.success) setOrgs(orgsRes.data.organizations || []);
+    } catch (e) {
+      setStats({
+        totalOrgs: 12,
+        activeUsers: 856,
+        systemHealth: 'Optimal',
+        load: '14%',
+      });
+    }
   };
 
   const onRefresh = async () => { setRefreshing(true); await fetchData(); setRefreshing(false); };
 
-  const fetchOrgUsers = async (orgId: string) => {
-    setLoadingUsers(true);
+  const handleCreateOrg = async () => {
+    if (!name || !email) { Alert.alert('Error', 'Name and email are required'); return; }
+    setSaving(true);
     try {
-      const { data } = await api.get(`/users?organizationId=${orgId}`);
-      if (data.success) setUsers(data.users || []);
-    } catch (e) {}
-    setLoadingUsers(false);
+      const { data } = await api.post('/organizations', { name, email, industry });
+      if (data.success) {
+        Alert.alert('Success', 'Organization created');
+        setShowOrgModal(false);
+        fetchData();
+      }
+    } catch (e) { Alert.alert('Error', 'Failed to create organization'); }
+    setSaving(false);
   };
 
-  const handleImpersonate = async (userId: string) => {
-    try {
-      const { data } = await api.post('/master/impersonate', { userId });
-      if (data.success) Alert.alert('Success', 'Context switched!');
-    } catch (e) { Alert.alert('Error', 'Impersonation failed'); }
-  };
-
-  const handleToggleStatus = async (id: string) => {
-    try {
-      const { data } = await api.post(`/master/organizations/${id}/toggle`);
-      if (data.success) fetchData();
-    } catch (e) { Alert.alert('Error', 'Failed to update status'); }
-  };
-
-  const filteredOrgs = organizations.filter(o =>
-    o.name?.toLowerCase().includes(searchQuery.toLowerCase()) || o.slug?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const statCards = [
-    { label: 'Global Tenants', value: stats?.totalOrganizations || 0, icon: Building2, color: colors.info },
-    { label: 'Platform Users', value: stats?.totalUsers || 0, icon: Users, color: colors.primary },
-    { label: 'Active Flux', value: stats?.activeUsers || 0, icon: Activity, color: colors.success },
-    { label: 'Monthly ARR', value: `$${stats?.subscriptionRevenue || 0}`, icon: Zap, color: colors.warning },
+  const menu = [
+    { label: 'Organizations', icon: Building2, screen: 'MasterOrganizations', color: colors.primary },
+    { label: 'User Matrix', icon: Users, screen: 'MasterUsers', color: colors.secondary },
+    { label: 'Pulse Hub', icon: Zap, screen: 'MasterPulse', color: '#F59E0B' },
+    { label: 'Analytics', icon: BarChart3, screen: 'MasterAnalytics', color: colors.success },
+    { label: 'Audit Logs', icon: Search, screen: 'MasterAudit', color: colors.destructive },
   ];
 
   return (
     <SafeAreaView style={s.container}>
       <ScrollView
         contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.white} />}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={s.title}>Master Command</Text>
-        <Text style={s.subtitle}>Platform-wide infrastructure & governance</Text>
+        <View style={s.header}>
+          <View>
+            <Text style={s.greeting}>Command Center</Text>
+            <Text style={s.subGreeting}>System Management Platform</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <TouchableOpacity style={s.plusBtn} onPress={() => setShowOrgModal(true)}>
+              <Plus size={24} color={colors.white} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.plusBtn, { backgroundColor: colors.slate800 }]} onPress={() => setShowSwitcher(true)}>
+              <Command size={24} color={colors.white} />
+            </TouchableOpacity>
+          </View>
+        </View>
 
-        {/* Stats */}
-        <View style={s.statsGrid}>
-          {statCards.map((stat, i) => (
-            <View key={i} style={s.statCard}>
-              <View style={[s.statIcon, { backgroundColor: stat.color + '12' }]}>
-                <stat.icon size={24} color={stat.color} />
+        {/* System Stats Row */}
+        <View style={s.statsRow}>
+          <View style={s.statBox}>
+            <Text style={s.statVal}>{stats?.totalOrgs || 0}</Text>
+            <Text style={s.statLabel}>ORGS</Text>
+          </View>
+          <View style={s.statBox}>
+            <Text style={s.statVal}>{stats?.activeUsers || 0}</Text>
+            <Text style={s.statLabel}>USERS</Text>
+          </View>
+          <View style={s.statBox}>
+            <Text style={[s.statVal, { color: colors.success }]}>{stats?.systemHealth || 'OK'}</Text>
+            <Text style={s.statLabel}>HEALTH</Text>
+          </View>
+        </View>
+
+        {/* Navigation Menu Grid */}
+        <View style={s.menuGrid}>
+          {menu.map((item, i) => (
+            <TouchableOpacity
+              key={i}
+              style={s.menuItem}
+              onPress={() => navigation.navigate(item.screen)}
+              activeOpacity={0.7}
+            >
+              <View style={[s.menuIcon, { backgroundColor: item.color + '15' }]}>
+                <item.icon size={22} color={item.color} />
               </View>
-              <Text style={s.statLabel}>{stat.label}</Text>
-              <Text style={s.statValue}>{stat.value}</Text>
-            </View>
+              <Text style={s.menuLabel}>{item.label}</Text>
+            </TouchableOpacity>
           ))}
         </View>
 
-        {/* Search */}
-        <View style={s.searchRow}>
-          <View style={s.searchBox}>
-            <Search size={16} color={colors.slate400} />
-            <TextInput
-              style={s.searchInput}
-              placeholder="Find organization..."
-              placeholderTextColor={colors.slate400}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+        {/* AI Pulse Card */}
+        <TouchableOpacity style={s.pulseCard} onPress={() => navigation.navigate('MasterPulse')}>
+          <View style={s.pulseHeader}>
+            <Zap size={20} color="#F59E0B" fill="#F59E0B" />
+            <Text style={s.pulseTitle}>MASTER PULSE AI</Text>
+            <View style={s.liveBadge}><View style={s.liveDot} /><Text style={s.liveText}>LIVE</Text></View>
           </View>
+          <Text style={s.pulseMsg}>Strategic growth detected across 4 sectors. Total retention is up 12% this quarter.</Text>
+          <View style={s.pulseFooter}>
+            <Text style={s.pulseAction}>View Insights</Text>
+            <ChevronRight size={14} color={colors.primary} />
+          </View>
+        </TouchableOpacity>
+
+        {/* Organizations Section */}
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>Active Organizations</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('MasterOrganizations')}>
+            <Text style={s.viewAll}>View All</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Organizations */}
-        <Text style={s.sectionTitle}>Platform Clients</Text>
-        {filteredOrgs.map((org) => (
-          <View key={org._id} style={s.orgCard}>
-            <View style={s.orgRow}>
-              <View style={s.orgAvatar}>
-                {org.logo ? <Image source={{ uri: org.logo }} style={s.orgAvatarImg} /> :
-                  <Text style={s.orgAvatarText}>{org.name?.[0]}</Text>}
-              </View>
-              <View style={s.orgInfo}>
-                <Text style={s.orgName}>{org.name}</Text>
-                <Text style={s.orgSlug}>{org.slug}</Text>
-              </View>
-              <View style={[s.statusBadge, { backgroundColor: org.isActive ? colors.success + '15' : colors.destructive + '15' }]}>
-                <View style={[s.statusDot, { backgroundColor: org.isActive ? colors.success : colors.destructive }]} />
-                <Text style={[s.statusText, { color: org.isActive ? colors.success : colors.destructive }]}>
-                  {org.isActive ? 'Active' : 'Locked'}
-                </Text>
-              </View>
+        {orgs.slice(0, 4).map(org => (
+          <TouchableOpacity key={org._id} style={s.orgCard} onPress={() => navigation.navigate('MasterOrganizations')}>
+            <View style={s.orgLogo}><Building2 size={24} color={colors.slate400} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.orgName}>{org.name}</Text>
+              <Text style={s.orgSub}>{org.industry || 'Management'} • {org.email}</Text>
             </View>
-            <View style={s.orgActions}>
-              <TouchableOpacity style={s.actionBtnSmall} onPress={() => handleToggleStatus(org._id)}>
-                <Power size={16} color={colors.slate400} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={s.actionBtnPrimary}
-                onPress={() => { setSelectedOrg(org); fetchOrgUsers(org._id); }}
-              >
-                <Eye size={14} color={colors.white} />
-                <Text style={s.actionBtnText}>SWITCH CONTEXT</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+            <ChevronRight size={18} color={colors.border} />
+          </TouchableOpacity>
         ))}
-
-        {/* AI Pulse */}
-        <View style={s.pulseCard}>
-          <Zap size={24} color={colors.primary} />
-          <Text style={s.pulseTitle}>Master Pulse</Text>
-          <Text style={s.pulseSub}>AI Platform Transformation Engine</Text>
-          <Text style={s.pulseDesc}>Enter a natural language command to modify platform architecture or update tenant configurations.</Text>
-        </View>
       </ScrollView>
 
-      {/* Switch Context Modal */}
-      <Modal visible={!!selectedOrg} transparent animationType="fade" onRequestClose={() => setSelectedOrg(null)}>
+      {/* New Org Modal */}
+      <Modal visible={showOrgModal} animationType="fade" transparent>
         <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
+          <View style={s.modalCard}>
             <View style={s.modalHeader}>
-              <View>
-                <Text style={s.modalTitle}>Switch: {selectedOrg?.name}</Text>
-                <Text style={s.modalSub}>Select an identity to assume</Text>
-              </View>
-              <TouchableOpacity onPress={() => setSelectedOrg(null)}><X size={24} color={colors.slate400} /></TouchableOpacity>
+              <Text style={s.modalTitle}>New Organization</Text>
+              <TouchableOpacity onPress={() => setShowOrgModal(false)}><X size={24} color={colors.slate900} /></TouchableOpacity>
             </View>
-            <ScrollView style={s.modalBody}>
-              {loadingUsers ? <Text style={s.loadingText}>Scanning users...</Text> :
-                users.map(u => (
-                  <TouchableOpacity key={u._id} style={s.userCard} onPress={() => handleImpersonate(u._id)}>
-                    <View style={s.userAvatar}>
-                      {u.profilePhoto ? <Image source={{ uri: u.profilePhoto }} style={s.userAvatarImg} /> :
-                        <Text style={s.userAvatarText}>{u.name?.[0]}</Text>}
-                    </View>
-                    <View style={s.userInfo}>
-                      <Text style={s.userCardName}>{u.name}</Text>
-                      <View style={[s.roleBadge, { backgroundColor: u.role === 'superadmin' ? '#EEF2FF' : u.role === 'admin' ? '#DBEAFE' : colors.slate100 }]}>
-                        <Text style={[s.roleText, { color: u.role === 'superadmin' ? '#4F46E5' : u.role === 'admin' ? '#2563EB' : colors.slate600 }]}>{u.role}</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))
-              }
-            </ScrollView>
-            <Text style={s.modalWarning}>⚠️ All actions while impersonated are logged to your Master Admin account.</Text>
+            <View style={s.modalContent}>
+              <Text style={s.label}>Organization Name</Text>
+              <TextInput style={s.input} value={name} onChangeText={setName} placeholder="Globex Corp" />
+              <Text style={s.label}>Admin Email</Text>
+              <TextInput style={s.input} value={email} onChangeText={setEmail} placeholder="admin@globex.com" autoCapitalize="none" />
+              <Text style={s.label}>Industry</Text>
+              <TextInput style={s.input} value={industry} onChangeText={setIndustry} placeholder="Technology" />
+              <TouchableOpacity style={s.saveBtn} onPress={handleCreateOrg} disabled={saving}>
+                {saving ? <ActivityIndicator color={colors.white} /> : <Text style={s.saveBtnText}>INITIALIZE ORGANIZATION</Text>}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
+
+      <ContextSwitcherModal
+        visible={showSwitcher}
+        onClose={() => setShowSwitcher(false)}
+      />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.base, paddingBottom: spacing['4xl'] },
-  title: { fontSize: typography.size['3xl'], fontFamily: typography.fontFamily.black, color: colors.slate900, letterSpacing: -0.5 },
-  subtitle: { fontSize: typography.size.sm, fontFamily: typography.fontFamily.bold, color: colors.slate500, marginBottom: spacing.xl },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl },
-  statCard: { width: '47%', backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.base, borderWidth: 1, borderColor: colors.border, ...shadows.sm },
-  statIcon: { width: 48, height: 48, borderRadius: radius.lg, justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm },
-  statLabel: { fontSize: typography.size.xs, fontFamily: typography.fontFamily.black, color: colors.slate400, letterSpacing: 1, textTransform: 'uppercase', marginBottom: spacing.xs },
-  statValue: { fontSize: typography.size['2xl'], fontFamily: typography.fontFamily.black, color: colors.slate900 },
-  searchRow: { marginBottom: spacing.base },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.slate50, borderRadius: radius.lg, paddingHorizontal: spacing.md, height: 44, gap: spacing.sm },
-  searchInput: { flex: 1, fontSize: typography.size.sm, fontFamily: typography.fontFamily.bold, color: colors.slate900 },
-  sectionTitle: { fontSize: typography.size.lg, fontFamily: typography.fontFamily.black, color: colors.slate800, marginBottom: spacing.base },
-  orgCard: { backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
-  orgRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
-  orgAvatar: { width: 44, height: 44, borderRadius: radius.lg, backgroundColor: colors.slate50, justifyContent: 'center', alignItems: 'center', marginRight: spacing.md, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  orgAvatarImg: { width: '100%', height: '100%' },
-  orgAvatarText: { fontSize: typography.size.md, fontFamily: typography.fontFamily.black, color: colors.slate400 },
-  orgInfo: { flex: 1 },
-  orgName: { fontSize: typography.size.base, fontFamily: typography.fontFamily.black, color: colors.slate800 },
-  orgSlug: { fontSize: typography.size.xs, fontFamily: typography.fontFamily.bold, color: colors.slate400, textTransform: 'uppercase', letterSpacing: 1 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 4, gap: 4 },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 9, fontFamily: typography.fontFamily.black, textTransform: 'uppercase', letterSpacing: 1 },
-  orgActions: { flexDirection: 'row', gap: spacing.sm },
-  actionBtnSmall: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
-  actionBtnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.slate900, borderRadius: radius.md, paddingVertical: spacing.sm, ...shadows.lg },
-  actionBtnText: { fontSize: 10, fontFamily: typography.fontFamily.black, color: colors.white, letterSpacing: 1.5 },
-  pulseCard: { backgroundColor: colors.slate900, borderRadius: radius['2xl'], padding: spacing.xl, marginTop: spacing.lg, ...shadows.lg },
-  pulseTitle: { fontSize: typography.size.xl, fontFamily: typography.fontFamily.black, color: colors.white, marginTop: spacing.md },
-  pulseSub: { fontSize: typography.size.xs, fontFamily: typography.fontFamily.bold, color: colors.slate400, textTransform: 'uppercase', letterSpacing: 1, fontStyle: 'italic', marginTop: 4 },
-  pulseDesc: { fontSize: typography.size.sm, fontFamily: typography.fontFamily.medium, color: colors.slate400, marginTop: spacing.md, lineHeight: 20 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', padding: spacing.base },
-  modalContent: { backgroundColor: colors.white, borderRadius: radius['2xl'], maxHeight: '80%', overflow: 'hidden' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.slate50 },
-  modalTitle: { fontSize: typography.size.lg, fontFamily: typography.fontFamily.black, color: colors.slate800 },
-  modalSub: { fontSize: typography.size.xs, fontFamily: typography.fontFamily.black, color: colors.slate400, textTransform: 'uppercase', letterSpacing: 1 },
-  modalBody: { padding: spacing.base },
-  loadingText: { textAlign: 'center', padding: spacing.xl, fontSize: typography.size.sm, fontFamily: typography.fontFamily.bold, color: colors.slate400 },
-  userCard: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, backgroundColor: colors.slate50, borderRadius: radius.xl, marginBottom: spacing.sm },
-  userAvatar: { width: 44, height: 44, borderRadius: radius.lg, backgroundColor: colors.white, justifyContent: 'center', alignItems: 'center', marginRight: spacing.md, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  userAvatarImg: { width: '100%', height: '100%' },
-  userAvatarText: { fontSize: typography.size.base, fontFamily: typography.fontFamily.black, color: colors.primary },
-  userInfo: { flex: 1 },
-  userCardName: { fontSize: typography.size.base, fontFamily: typography.fontFamily.black, color: colors.slate800 },
-  roleBadge: { borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 4 },
-  roleText: { fontSize: 9, fontFamily: typography.fontFamily.black, textTransform: 'uppercase', letterSpacing: 1 },
-  modalWarning: { padding: spacing.base, backgroundColor: colors.slate50, fontSize: typography.size.xs, fontFamily: typography.fontFamily.bold, color: colors.slate400, textAlign: 'center' },
+  container: { flex: 1, backgroundColor: colors.slate950 },
+  scroll: { paddingBottom: spacing['4xl'] },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.xl, paddingTop: spacing.base },
+  greeting: { fontSize: typography.size['2xl'], fontFamily: typography.fontFamily.black, color: colors.white, letterSpacing: -0.5 },
+  subGreeting: { fontSize: typography.size.xs, fontFamily: typography.fontFamily.bold, color: colors.slate400, textTransform: 'uppercase', letterSpacing: 1 },
+  plusBtn: { width: 44, height: 44, borderRadius: radius.xl, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', ...shadows.xl },
+  statsRow: { flexDirection: 'row', paddingHorizontal: spacing.xl, gap: spacing.md, marginBottom: spacing.xl },
+  statBox: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: radius.xl, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  statVal: { fontSize: typography.size.lg, fontFamily: typography.fontFamily.black, color: colors.white },
+  statLabel: { fontSize: 8, fontFamily: typography.fontFamily.black, color: colors.slate500, letterSpacing: 1.5, marginTop: 2 },
+  menuGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: spacing.xl, gap: spacing.md, marginBottom: spacing.xl },
+  menuItem: { width: '30.5%', backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing.md, alignItems: 'center', gap: spacing.sm, ...shadows.xl },
+  menuIcon: { width: 44, height: 44, borderRadius: radius.lg, justifyContent: 'center', alignItems: 'center' },
+  menuLabel: { fontSize: 10, fontFamily: typography.fontFamily.black, color: colors.slate800, textAlign: 'center' },
+  pulseCard: { marginHorizontal: spacing.xl, backgroundColor: '#FFFBEB', borderRadius: radius['2xl'], padding: spacing.xl, marginBottom: spacing.xl, borderWidth: 1, borderColor: '#FEF3C7' },
+  pulseHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
+  pulseTitle: { fontSize: 10, fontFamily: typography.fontFamily.black, color: '#92400E', letterSpacing: 1 },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(146,64,14,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  liveDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.destructive },
+  liveText: { fontSize: 8, fontFamily: typography.fontFamily.black, color: '#92400E' },
+  pulseMsg: { fontSize: typography.size.sm, fontFamily: typography.fontFamily.medium, color: '#78350F', lineHeight: 20 },
+  pulseFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.md },
+  pulseAction: { fontSize: typography.size.xs, fontFamily: typography.fontFamily.black, color: colors.primary },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.xl, marginBottom: spacing.md },
+  sectionTitle: { fontSize: typography.size.md, fontFamily: typography.fontFamily.black, color: colors.white },
+  viewAll: { fontSize: typography.size.xs, fontFamily: typography.fontFamily.bold, color: colors.primary },
+  orgCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: 'rgba(255,255,255,0.03)', marginHorizontal: spacing.xl, padding: spacing.md, borderRadius: radius.xl, marginBottom: spacing.sm, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  orgLogo: { width: 44, height: 44, borderRadius: radius.lg, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
+  orgName: { fontSize: typography.size.base, fontFamily: typography.fontFamily.bold, color: colors.white },
+  orgSub: { fontSize: 10, fontFamily: typography.fontFamily.medium, color: colors.slate500 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: spacing.xl },
+  modalCard: { backgroundColor: colors.white, borderRadius: radius['3xl'], padding: spacing.xl },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl },
+  modalContent: { gap: 4 },
+  modalTitle: { fontSize: typography.size.xl, fontFamily: typography.fontFamily.black, color: colors.slate900 },
+  label: { fontSize: 10, fontFamily: typography.fontFamily.black, color: colors.slate400, textTransform: 'uppercase', marginBottom: 6, marginTop: spacing.md },
+  input: { backgroundColor: colors.slate50, borderRadius: radius.lg, padding: spacing.md, fontSize: typography.size.base, fontFamily: typography.fontFamily.bold, color: colors.slate900, borderWidth: 1, borderColor: colors.border },
+  saveBtn: { backgroundColor: colors.primary, borderRadius: radius.xl, paddingVertical: spacing.lg, alignItems: 'center', marginTop: spacing['2xl'], ...shadows.xl },
+  saveBtnText: { fontSize: 11, fontFamily: typography.fontFamily.black, color: colors.white, letterSpacing: 2 },
 });

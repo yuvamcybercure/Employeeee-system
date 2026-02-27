@@ -6,25 +6,38 @@ import { useAuth } from '../context/AuthContext';
 import {
   Calendar, FolderOpen, ClipboardList, Users, Shield,
   DollarSign, Package, Lightbulb, FileText, ChevronRight,
-  Activity
+  Activity, Building2, BarChart3, Search, Zap, Box, Globe
 } from 'lucide-react-native';
 
 export default function MoreScreen({ navigation }: any) {
   const { user } = useAuth();
   const isAdmin = ['admin', 'superadmin', 'master-admin'].includes(user?.role || '');
+  const isMaster = user?.role === 'master-admin';
 
   const items = [
     { label: 'Leaves', sub: 'Request & track leaves', icon: Calendar, color: colors.success, screen: 'Leaves' },
     { label: 'Projects', sub: 'View assigned projects', icon: FolderOpen, color: colors.primary, screen: 'Projects' },
     { label: 'Timesheets', sub: 'Log your work hours', icon: ClipboardList, color: colors.secondary, screen: 'Timesheets' },
     { label: 'Assets', sub: 'Company equipment & devices', icon: Package, color: colors.info, screen: 'Assets' },
-    { label: 'Policies', sub: 'Organization policies', icon: FileText, color: colors.accent, screen: 'Policies' },
+    { label: 'Documents', sub: 'Certificates & ID cards', icon: FileText, color: colors.success, screen: 'Documents' },
+    { label: 'Policies', sub: 'Organization policies', icon: Shield, color: colors.accent, screen: 'Policies' },
     { label: 'Suggestions', sub: 'Ideas & feedback', icon: Lightbulb, color: '#F59E0B', screen: 'Suggestions' },
     ...(isAdmin ? [
       { label: 'Finance', sub: 'Payroll, invoices & expenses', icon: DollarSign, color: colors.success, screen: 'Finance' },
       { label: 'Users', sub: 'Manage employees', icon: Users, color: colors.primary, screen: 'Users' },
       { label: 'Permissions', sub: 'Role-based access control', icon: Shield, color: colors.destructive, screen: 'Permissions' },
       { label: 'Activity Logs', sub: 'System event log', icon: Activity, color: colors.slate600, screen: 'Logs' },
+      { label: 'Asset Inventory', sub: 'Manage company equipment', icon: Box, color: colors.info, screen: 'AssetInventory' },
+      { label: 'Geofence Settings', sub: 'Set office location', icon: Globe, color: '#f59e0b', screen: 'GeofenceSettings' },
+      { label: 'Org Settings', sub: 'Global configuration', icon: Building2, color: colors.slate800, screen: 'OrgSettings' },
+      { label: 'Reset Requests', sub: 'Password approvals', icon: Shield, color: colors.destructive, screen: 'AdminResetRequests' },
+    ] : []),
+    ...(isMaster ? [
+      { label: 'Organizations', sub: 'Multi-org management', icon: Building2, color: '#7C3AED', screen: 'MasterOrganizations' },
+      { label: 'User Matrix', sub: 'Cross-org user overview', icon: Users, color: '#0284C7', screen: 'MasterUsers' },
+      { label: 'Analytics Hub', sub: 'Organization-wide metrics', icon: BarChart3, color: '#059669', screen: 'Analytics' },
+      { label: 'Audit Stream', sub: 'System-wide event log', icon: Search, color: '#DC2626', screen: 'MasterAudit' },
+      { label: 'Master Pulse', sub: 'AI-powered insights', icon: Zap, color: '#F59E0B', screen: 'MasterPulse' },
     ] : []),
   ];
 

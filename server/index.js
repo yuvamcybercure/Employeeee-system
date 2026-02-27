@@ -103,7 +103,8 @@ const uploadDirs = [
     'public/uploads/attendance',
     'public/uploads/profiles',
     'public/uploads/documents',
-    'public/uploads/branding'
+    'public/uploads/branding',
+    'public/uploads/messages'
 ];
 uploadDirs.forEach(dir => {
     const fullPath = path.join(__dirname, dir);
@@ -156,6 +157,67 @@ io.on('connection', (socket) => {
             }
         }
         io.emit('update_online_status', Array.from(onlineUsers.keys()));
+    });
+
+    // --- Call Signaling Support ---
+    socket.on('call_user', (data) => {
+        const { userToCall, signalData, from, name, type, isGroup, roomId } = data;
+        if (isGroup) {
+            socket.to(roomId).emit('incoming_call', { signalData, from, name, type, isGroup, roomId });
+        } else {
+            const target = onlineUsers.get(userToCall);
+            if (target) {
+                io.to(target.socketId).emit('incoming_call', { signalData, from, name, type, isGroup, roomId });
+            }
+        }
+    });
+
+    socket.on('accept_call', (data) => {
+        const { to, roomId, isGroup, from } = data;
+        if (isGroup) {
+            socket.to(roomId).emit('call_accepted', { from, roomId });
+        } else {
+            const target = onlineUsers.get(to);
+            if (target) {
+                io.to(target.socketId).emit('call_accepted', { from, roomId });
+            }
+        }
+    });
+
+    socket.on('reject_call', (data) => {
+        const { to, roomId, isGroup, from } = data;
+        if (isGroup) {
+            socket.to(roomId).emit('call_rejected', { from, roomId });
+        } else {
+            const target = onlineUsers.get(to);
+            if (target) {
+                io.to(target.socketId).emit('call_rejected', { from, roomId });
+            }
+        }
+    });
+
+    socket.on('end_call', (data) => {
+        const { roomId, isGroup, to } = data;
+        if (isGroup) {
+            socket.to(roomId).emit('call_ended', { roomId });
+        } else {
+            const target = onlineUsers.get(to);
+            if (target) {
+                io.to(target.socketId).emit('call_ended', { roomId });
+            }
+        }
+    });
+
+    socket.on('webrtc_signal', (data) => {
+        const { to, signal, isGroup, roomId, from } = data;
+        if (isGroup) {
+            socket.to(roomId).emit('webrtc_signal', { signal, from, roomId });
+        } else {
+            const target = onlineUsers.get(to);
+            if (target) {
+                io.to(target.socketId).emit('webrtc_signal', { signal, from, roomId });
+            }
+        }
     });
 });
 

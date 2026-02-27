@@ -12,6 +12,8 @@ import {
   Inter_900Black,
 } from '@expo-google-fonts/inter';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { SocketProvider } from './src/context/SocketContext';
+import { CallProvider } from './src/context/CallContext';
 import AuthStack from './src/navigation/AuthStack';
 import AppTabs from './src/navigation/AppTabs';
 import { colors } from './src/theme';
@@ -53,7 +55,11 @@ export default function App() {
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <NavigationContainer>
         <AuthProvider>
-          <RootNavigator />
+          <SocketProvider>
+            <CallProvider>
+              <RootNavigator />
+            </CallProvider>
+          </SocketProvider>
         </AuthProvider>
       </NavigationContainer>
     </SafeAreaProvider>
