@@ -176,7 +176,7 @@ export default function EmployeeDashboard() {
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Status</span>
                                             <span className="text-sm font-black text-slate-700 uppercase tracking-widest">
-                                                {attendance?.clockIn ? `In: ${new Date(attendance.clockIn.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Waiting for In"}
+                                                {attendance?.clockIn?.time ? `In: ${new Date(attendance.clockIn.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Waiting for In"}
                                             </span>
                                         </div>
                                     </div>

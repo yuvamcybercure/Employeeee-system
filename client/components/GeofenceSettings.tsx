@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { MapPin, Target, Save, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { cn, formatDate, formatDuration } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export function GeofenceSettings() {
     const [settings, setSettings] = useState<any>(null);

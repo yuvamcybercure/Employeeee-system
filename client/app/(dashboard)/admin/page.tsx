@@ -57,7 +57,7 @@ export default function AdminDashboard() {
     const fetchDashboardData = async () => {
         try {
             const { data: overview } = await api.get('/attendance/overview');
-            const { data: weekly } = await api.get('/attendance/weekly-summary');
+            const { data: weekly } = await api.get('/attendance/weekly');
             if (overview.success) setData(overview);
             if (weekly.success) setChartData(weekly.data);
         } catch (err) {
@@ -287,13 +287,13 @@ export default function AdminDashboard() {
                                         <td className="px-10 py-6">
                                             <div className="flex items-center gap-2">
                                                 <Clock size={14} className="text-slate-300" />
-                                                <p className="text-sm font-black text-slate-900 tabular-nums">{new Date(record.clockIn.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                <p className="text-sm font-black text-slate-900 tabular-nums">{record.clockIn?.time ? new Date(record.clockIn.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}</p>
                                             </div>
                                         </td>
                                         <td className="px-10 py-6">
                                             <div className="flex items-center gap-2">
                                                 <Activity size={14} className="text-slate-300" />
-                                                <p className="text-xs text-slate-500 font-bold tracking-widest tabular-nums">{record.clockIn.ip}</p>
+                                                <p className="text-xs text-slate-500 font-bold tracking-widest tabular-nums">{record.clockIn?.ip || '--'}</p>
                                             </div>
                                         </td>
                                         <td className="px-10 py-6 text-right">

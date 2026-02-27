@@ -24,7 +24,7 @@ export function AttendanceSettings() {
             if (!user?.organizationId?._id) return;
             setLoading(true);
             try {
-                const { data } = await api.get(`/organization/${user.organizationId._id}`);
+                const { data } = await api.get(`/org/${user.organizationId._id}`);
                 if (data.success && data.organization.settings?.attendanceSettings) {
                     setSettings(data.organization.settings.attendanceSettings);
                 }
@@ -41,7 +41,7 @@ export function AttendanceSettings() {
         if (!user?.organizationId?._id) return;
         setSaving(true);
         try {
-            const { data } = await api.patch(`/organization/${user.organizationId._id}`, {
+            const { data } = await api.patch(`/org/${user.organizationId._id}`, {
                 settings: { attendanceSettings: settings }
             });
             if (data.success) {
