@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Kinetik",
+    "slug": "kinetik-hrm",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "kinetik",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#3346D3"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kinetik.hrm",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used for attendance selfie capture",
+        "NSLocationWhenInUseUsageDescription": "Used for geofence-based attendance verification"
+      }
+    },
+    "android": {
+      "package": "com.kinetik.hrm",
+      "adaptiveIcon": {
+        "backgroundColor": "#3346D3",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ],
+    "extra": {
+      "apiUrl": "https://employee-api-wcak.onrender.com/api",
+      "socketUrl": "https://employee-api-wcak.onrender.com"
+    }
+  }
+}
