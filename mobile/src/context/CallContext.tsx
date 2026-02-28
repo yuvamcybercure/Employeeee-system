@@ -4,13 +4,29 @@ import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 
 
-import {
-    RTCPeerConnection,
-    RTCIceCandidate,
-    RTCSessionDescription,
-    mediaDevices,
-    MediaStream,
-} from 'react-native-webrtc';
+let RTCPeerConnection: any = null;
+let RTCIceCandidate: any = null;
+let RTCSessionDescription: any = null;
+let mediaDevices: any = null;
+let MediaStreamType: any = null;
+let isWebRTCAvailable = false;
+
+try {
+    const webrtc = require('react-native-webrtc');
+    RTCPeerConnection = webrtc.RTCPeerConnection;
+    RTCIceCandidate = webrtc.RTCIceCandidate;
+    RTCSessionDescription = webrtc.RTCSessionDescription;
+    mediaDevices = webrtc.mediaDevices;
+    MediaStreamType = webrtc.MediaStream;
+    // Test if native module is truly linked, by accessing a native constant or just assuming if require didn't throw
+    if (RTCPeerConnection) isWebRTCAvailable = true;
+} catch (error) {
+    console.warn('react-native-webrtc is not available. Expo Go does not support custom native modules. Call features disabled.');
+    isWebRTCAvailable = false;
+}
+
+// For typing purposes where MediaStream is used as a Type
+type MediaStream = any;
 
 interface CallState {
     active: boolean;
@@ -60,7 +76,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const { socket } = useSocket();
     const { user } = useAuth();
     const [call, setCall] = useState<CallState>(initialCallState);
-    const pc = useRef<RTCPeerConnection | null>(null);
+    const pc = useRef<any>(null);
 
     useEffect(() => {
         if (!socket) return;
@@ -124,7 +140,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const setupPeerConnection = (stream: MediaStream, targetId: string) => {
         const peer = new RTCPeerConnection(configuration);
 
-        stream.getTracks().forEach(track => {
+        stream.getTracks().forEach((track: any) => {
             peer.addTrack(track, stream);
         });
 
@@ -155,12 +171,16 @@ export function CallProvider({ children }: { children: ReactNode }) {
             pc.current = null;
         }
         if (call.localStream) {
-            call.localStream.getTracks().forEach(track => track.stop());
+            call.localStream.getTracks().forEach((track: any) => track.stop());
         }
         setCall(initialCallState);
     };
 
     const startCall = async (targetId: string, targetName: string, type: 'audio' | 'video', isGroup = false) => {
+        if (!isWebRTCAvailable) {
+            Alert.alert('Unsupported', 'Calling is not supported in Expo Go. Please use a development build.');
+            return;
+        }
         if (!socket || !user) return;
         try {
             const stream = await mediaDevices.getUserMedia({
@@ -201,6 +221,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
 
     const answerCall = async () => {
+        if (!isWebRTCAvailable) {
+            Alert.alert('Unsupported', 'Calling is not supported in Expo Go. Please use a development build.');
+            return;
+        }
         if (!socket || !user || !call.roomId) return;
         try {
             const stream = await mediaDevices.getUserMedia({
