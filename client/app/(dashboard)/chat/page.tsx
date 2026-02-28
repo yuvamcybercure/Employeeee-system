@@ -91,7 +91,7 @@ export default function ChatPage() {
                     return `http://${hostname}:5000`;
                 }
             }
-            return 'http://localhost:5000';
+            return 'https://employee-api-wcak.onrender.com';
         };
 
         socketRef.current = io(getSocketUrl());

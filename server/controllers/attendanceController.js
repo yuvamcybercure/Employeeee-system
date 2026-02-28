@@ -8,7 +8,7 @@ const GeofenceSettings = require('../models/GeofenceSettings');
 const User = require('../models/User');
 const Leave = require('../models/Leave');
 const Timesheet = require('../models/Timesheet');
-const { uploadBase64 } = require('../config/cloudinary');
+const { uploadBase64 } = require('../config/localStorage');
 const { logActivity } = require('../middleware/logger');
 const NodeCache = require('node-cache');
 

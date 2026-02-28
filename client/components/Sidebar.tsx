@@ -121,7 +121,7 @@ export function Sidebar() {
                     return `http://${hostname}:5000`;
                 }
             }
-            return 'http://localhost:5000';
+            return 'https://employee-api-wcak.onrender.com';
         };
 
         const socket = io(getSocketUrl());

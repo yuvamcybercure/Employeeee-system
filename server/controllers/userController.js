@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const { logActivity } = require('../middleware/logger');
 
-const { uploadBase64 } = require('../config/cloudinary');
+const { uploadBase64 } = require('../config/localStorage');
 
 // GET /api/users/profile
 exports.getProfile = async (req, res) => {

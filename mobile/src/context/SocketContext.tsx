@@ -14,7 +14,7 @@ const SocketContext = createContext<SocketContextType>({
 });
 
 // Replace with your actual backend URL
-const SOCKET_URL = 'https://yuvamcybercure-backend.onrender.com';
+const SOCKET_URL = 'https://employee-api-wcak.onrender.com';
 
 export function SocketProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();

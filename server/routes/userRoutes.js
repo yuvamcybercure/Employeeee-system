@@ -3,7 +3,7 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/rbac');
-const { uploadProfile } = require('../config/cloudinary');
+const { uploadProfile } = require('../config/localStorage');
 
 router.use(protect);
 

@@ -42,7 +42,7 @@ const masterRoutes = require('./routes/masterRoutes');
 
 const app = express();
 const server = http.createServer(app);
-const allowedOrigins = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : ['http://localhost:3000'];
+const allowedOrigins = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : ['http://localhost:3000', 'https://kinetic-eosin.vercel.app'];
 
 const io = new Server(server, {
     cors: {
