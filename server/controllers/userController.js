@@ -36,6 +36,17 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
+// PUT /api/users/push-token
+exports.updatePushToken = async (req, res) => {
+    try {
+        const { token } = req.body;
+        await User.findByIdAndUpdate(req.user._id, { expoPushToken: token });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
 // PUT /api/users/bank-details
 exports.updateBankDetails = async (req, res) => {
     try {

@@ -152,31 +152,23 @@ export default function ChatPage() {
             setTypingUser(null);
         });
 
-        socket.on('incoming_call', ({ signal, from, name, type, isGroup, roomId }: any) => {
+        socket.on('incoming_call', ({ signalData, from, name, type, isGroup, roomId }: any) => {
             console.log('📥 Incoming Call Received:', { from, name, type });
-            setCall({ isReceivingCall: true, from, name, signal, type, isGroup, roomId });
+            setCall({ isReceivingCall: true, from, name, signalData, type, isGroup, roomId });
             playSound('/sounds/ringtone.mp3');
         });
 
-        socket.on('call_accepted', async ({ signal, from }: any) => {
+        socket.on('call_accepted', async ({ signalData, from }: any) => {
             console.log('✅ Call Accepted by:', from);
             setCallAccepted(true);
             stopSound();
 
-            const stream = localVideoRef.current?.srcObject as MediaStream;
-            if (!stream) return;
-
-            // We need to be careful with 'call' state inside listeners.
-            // Better to use functional updates or Refs if 'call' changes.
-            // For now, let's keep it simple as the priority is messaging.
-            const pc = createPeerConnection(from, stream, 'video', false);
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            socket.emit('webrtc_signal', {
-                to: from,
-                signal: offer,
-                from: user?._id
-            });
+            if (signalData) {
+                const pc = pcsRef.current.get(from);
+                if (pc) {
+                    await pc.setRemoteDescription(new RTCSessionDescription(signalData));
+                }
+            }
         });
 
         socket.on('webrtc_signal', async ({ signal, from }: any) => {
@@ -458,9 +450,13 @@ export default function ChatPage() {
             const isGroup = selectedConv.type === 'group';
             const roomId = isGroup ? selectedConv.id : [user?._id, selectedConv.id].sort().join('-');
 
+            const pc = createPeerConnection(selectedConv.id, stream, type, isGroup, roomId);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
             socketRef.current.emit('call_user', {
                 userToCall: selectedConv.id,
-                signalData: null, // Peer discovery first
+                signalData: offer,
                 from: user?._id,
                 name: user?.name,
                 type,
@@ -482,17 +478,32 @@ export default function ChatPage() {
         if (!checkMediaSupport()) return;
 
         try {
-            setCallAccepted(true);
             const stream = await navigator.mediaDevices.getUserMedia({ video: call.type === 'video', audio: true });
             if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+            setCallAccepted(true);
 
-            // In mesh, when answering, we signal everyone that we are ready
-            socketRef.current.emit('accept_call', {
-                to: call.from,
-                isGroup: call.isGroup,
-                roomId: call.roomId,
-                from: user?._id
-            });
+            const pc = createPeerConnection(call.from, stream, call.type, call.isGroup, call.roomId);
+
+            if (call.signalData) {
+                await pc.setRemoteDescription(new RTCSessionDescription(call.signalData));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+
+                socketRef.current.emit('accept_call', {
+                    to: call.from,
+                    isGroup: call.isGroup,
+                    roomId: call.roomId,
+                    from: user?._id,
+                    signalData: answer
+                });
+            } else {
+                socketRef.current.emit('accept_call', {
+                    to: call.from,
+                    isGroup: call.isGroup,
+                    roomId: call.roomId,
+                    from: user?._id
+                });
+            }
         } catch (err) {
             console.error('Failed to answer call', err);
         }

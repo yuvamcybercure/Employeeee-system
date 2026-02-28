@@ -14,6 +14,7 @@ router.get('/birthdays/today', userController.getTodayBirthdays);
 router.get('/profile', userController.getProfile);
 router.put('/profile', uploadProfile.single('profilePhoto'), userController.updateProfile);
 router.put('/bank-details', userController.updateBankDetails);
+router.put('/push-token', userController.updatePushToken);
 
 // Management
 router.get('/', requirePermission('canViewEmployees'), userController.getAllUsers);

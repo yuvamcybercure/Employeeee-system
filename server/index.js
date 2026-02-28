@@ -149,6 +149,7 @@ io.on('connection', (socket) => {
         socket.join(userId);
         io.emit('update_online_status', Array.from(onlineUsers.keys()));
     });
+
     socket.on('disconnect', () => {
         for (const [userId, data] of onlineUsers.entries()) {
             if (data.socketId === socket.id) {
@@ -157,6 +158,38 @@ io.on('connection', (socket) => {
             }
         }
         io.emit('update_online_status', Array.from(onlineUsers.keys()));
+    });
+
+    // --- Chat Relay ---
+    socket.on('join_room', (roomId) => {
+        socket.join(roomId);
+        console.log(`User joined room: ${roomId}`);
+    });
+
+    socket.on('send_message', (data) => {
+        const { room } = data;
+        // Broadcast to everyone in the room EXCEPT the sender
+        socket.to(room).emit('receive_message', data);
+    });
+
+    socket.on('typing', (data) => {
+        const { roomId } = data;
+        socket.to(roomId).emit('user_typing', data);
+    });
+
+    socket.on('stop_typing', (data) => {
+        const { roomId } = data;
+        socket.to(roomId).emit('user_stop_typing', data);
+    });
+
+    socket.on('message_read', (data) => {
+        const { roomId, userId } = data;
+        socket.to(roomId).emit('messages_marked_read', { userId });
+    });
+
+    socket.on('delete_message', (data) => {
+        const { roomId, messageId, mode } = data;
+        socket.to(roomId).emit('message_deleted', { messageId, mode });
     });
 
     // --- Call Signaling Support ---
@@ -173,13 +206,13 @@ io.on('connection', (socket) => {
     });
 
     socket.on('accept_call', (data) => {
-        const { to, roomId, isGroup, from } = data;
+        const { to, roomId, isGroup, from, signalData } = data;
         if (isGroup) {
-            socket.to(roomId).emit('call_accepted', { from, roomId });
+            socket.to(roomId).emit('call_accepted', { from, roomId, signalData });
         } else {
             const target = onlineUsers.get(to);
             if (target) {
-                io.to(target.socketId).emit('call_accepted', { from, roomId });
+                io.to(target.socketId).emit('call_accepted', { from, roomId, signalData });
             }
         }
     });

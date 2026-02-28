@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 import api from '../api';
 
 interface User {
@@ -44,6 +46,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
+  const registerForPushNotifications = async () => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') return;
+
+      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      if (token) {
+        await api.put('/users/push-token', { token });
+      }
+
+      if (Platform.OS === 'android') {
+        Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      }
+    } catch (e) {
+      console.error('Error getting push token', e);
+    }
+  };
+
   const checkAuth = async () => {
     try {
       const token = await SecureStore.getItemAsync('token');
@@ -51,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data } = await api.get('/auth/me');
         if (data.success) {
           setUser({ ...data.user, permissions: data.permissions });
+          registerForPushNotifications();
         } else {
           await SecureStore.deleteItemAsync('token');
         }

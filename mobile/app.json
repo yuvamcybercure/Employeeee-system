@@ -30,6 +30,7 @@
       },
       "permissions": [
         "CAMERA",
+        "RECORD_AUDIO",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
       ]
@@ -38,11 +39,16 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-notifications",
+      "@config-plugins/react-native-webrtc"
     ],
     "extra": {
       "apiUrl": "https://employee-api-wcak.onrender.com/api",
-      "socketUrl": "https://employee-api-wcak.onrender.com"
+      "socketUrl": "https://employee-api-wcak.onrender.com",
+      "eas": {
+        "projectId": "70b90b65-66d9-4b6d-84ef-e42dda1cf364"
+      }
     }
   }
 }

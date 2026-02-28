@@ -1,7 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { Alert } from 'react-native';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 
+
+import {
+    RTCPeerConnection,
+    RTCIceCandidate,
+    RTCSessionDescription,
+    mediaDevices,
+    MediaStream,
+} from 'react-native-webrtc';
 
 interface CallState {
     active: boolean;
@@ -11,6 +20,8 @@ interface CallState {
     type: 'audio' | 'video';
     roomId: string | null;
     status: 'idle' | 'ringing' | 'connected' | 'ended';
+    localStream: MediaStream | null;
+    remoteStream: MediaStream | null;
 }
 
 interface CallContextType {
@@ -19,6 +30,8 @@ interface CallContextType {
     answerCall: () => void;
     rejectCall: () => void;
     endCall: () => void;
+    toggleMic: () => void;
+    toggleCamera: () => void;
 }
 
 const initialCallState: CallState = {
@@ -29,20 +42,32 @@ const initialCallState: CallState = {
     type: 'audio',
     roomId: null,
     status: 'idle',
+    localStream: null,
+    remoteStream: null,
 };
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
+
+const configuration = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+    ],
+};
 
 export function CallProvider({ children }: { children: ReactNode }) {
     const { socket } = useSocket();
     const { user } = useAuth();
     const [call, setCall] = useState<CallState>(initialCallState);
+    const pc = useRef<RTCPeerConnection | null>(null);
 
     useEffect(() => {
         if (!socket) return;
 
-        socket.on('incoming_call', (data) => {
+        socket.on('incoming_call', async (data) => {
             setCall({
+                ...initialCallState,
                 active: true,
                 isReceiving: true,
                 from: data.from,
@@ -51,60 +76,165 @@ export function CallProvider({ children }: { children: ReactNode }) {
                 roomId: data.roomId,
                 status: 'ringing'
             });
+            // Store the initial signal (offer)
+            if (data.signalData) {
+                (pc as any)._incomingSignal = data.signalData;
+            }
         });
 
-        socket.on('call_accepted', (data) => {
+        socket.on('webrtc_signal', async (data) => {
+            if (!pc.current) return;
+            try {
+                if (data.signal.type === 'offer' || data.signal.type === 'answer') {
+                    await pc.current.setRemoteDescription(new RTCSessionDescription(data.signal));
+                } else if (data.signal.candidate) {
+                    await pc.current.addIceCandidate(new RTCIceCandidate(data.signal));
+                }
+            } catch (e) {
+                console.error('Signal error', e);
+            }
+        });
+
+        socket.on('call_accepted', async (data) => {
             setCall(prev => ({ ...prev, status: 'connected' }));
+            if (data.signalData && pc.current) {
+                try {
+                    await pc.current.setRemoteDescription(new RTCSessionDescription(data.signalData));
+                } catch (e) { console.error('Error setting remote answer', e); }
+            }
         });
 
         socket.on('call_rejected', (data) => {
-            setCall(initialCallState);
+            cleanupCall();
         });
 
         socket.on('call_ended', (data) => {
-            setCall(initialCallState);
+            cleanupCall();
         });
 
         return () => {
             socket.off('incoming_call');
+            socket.off('webrtc_signal');
             socket.off('call_accepted');
             socket.off('call_rejected');
             socket.off('call_ended');
         };
     }, [socket]);
 
-    const startCall = (targetId: string, targetName: string, type: 'audio' | 'video', isGroup = false) => {
-        if (!socket || !user) return;
-        const roomId = isGroup ? targetId : [user._id, targetId].sort().join('-');
+    const setupPeerConnection = (stream: MediaStream, targetId: string) => {
+        const peer = new RTCPeerConnection(configuration);
 
-        socket.emit('call_user', {
-            userToCall: targetId,
-            from: user._id,
-            name: user.name,
-            type,
-            isGroup,
-            roomId
+        stream.getTracks().forEach(track => {
+            peer.addTrack(track, stream);
         });
 
-        setCall({
-            active: true,
-            isReceiving: false,
-            from: targetId,
-            name: targetName,
-            type,
-            roomId,
-            status: 'ringing'
-        });
+        const p = peer as any;
+        p.onicecandidate = (event: any) => {
+            if (event.candidate && socket) {
+                socket.emit('webrtc_signal', {
+                    to: targetId,
+                    from: user?._id,
+                    signal: event.candidate,
+                    roomId: call.roomId
+                });
+            }
+        };
+
+        p.ontrack = (event: any) => {
+            setCall(prev => ({ ...prev, remoteStream: event.streams[0] }));
+        };
+
+
+        pc.current = peer;
+        return peer;
     };
 
-    const answerCall = () => {
+    const cleanupCall = () => {
+        if (pc.current) {
+            pc.current.close();
+            pc.current = null;
+        }
+        if (call.localStream) {
+            call.localStream.getTracks().forEach(track => track.stop());
+        }
+        setCall(initialCallState);
+    };
+
+    const startCall = async (targetId: string, targetName: string, type: 'audio' | 'video', isGroup = false) => {
+        if (!socket || !user) return;
+        try {
+            const stream = await mediaDevices.getUserMedia({
+                audio: true,
+                video: type === 'video'
+            }) as MediaStream;
+
+            const roomId = isGroup ? targetId : [user._id, targetId].sort().join('-');
+
+            setCall({
+                active: true,
+                isReceiving: false,
+                from: targetId,
+                name: targetName,
+                type,
+                roomId,
+                status: 'ringing',
+                localStream: stream,
+                remoteStream: null
+            });
+
+            const peer = setupPeerConnection(stream, targetId);
+            const offer = await peer.createOffer();
+            await peer.setLocalDescription(offer);
+
+            socket.emit('call_user', {
+                userToCall: targetId,
+                from: user._id,
+                name: user.name,
+                type,
+                isGroup,
+                roomId,
+                signalData: offer
+            });
+        } catch (e) {
+            Alert.alert('Error', 'Could not access camera/microphone');
+        }
+    };
+
+    const answerCall = async () => {
         if (!socket || !user || !call.roomId) return;
-        socket.emit('accept_call', {
-            to: call.from,
-            roomId: call.roomId,
-            from: user._id
-        });
-        setCall(prev => ({ ...prev, status: 'connected' }));
+        try {
+            const stream = await mediaDevices.getUserMedia({
+                audio: true,
+                video: call.type === 'video'
+            }) as MediaStream;
+
+            setCall(prev => ({ ...prev, localStream: stream, status: 'connected' }));
+
+            const peer = setupPeerConnection(stream, call.from!);
+
+            // Set remote offer
+            const incomingSignal = (pc as any)._incomingSignal;
+            if (incomingSignal) {
+                await peer.setRemoteDescription(new RTCSessionDescription(incomingSignal));
+                const answer = await peer.createAnswer();
+                await peer.setLocalDescription(answer);
+
+                socket.emit('accept_call', {
+                    to: call.from,
+                    roomId: call.roomId,
+                    from: user._id,
+                    signalData: answer
+                });
+            } else {
+                socket.emit('accept_call', {
+                    to: call.from,
+                    roomId: call.roomId,
+                    from: user._id
+                });
+            }
+        } catch (e) {
+            Alert.alert('Error', 'Could not access camera/microphone');
+        }
     };
 
     const rejectCall = () => {
@@ -114,7 +244,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
             roomId: call.roomId,
             from: user._id
         });
-        setCall(initialCallState);
+        cleanupCall();
     };
 
     const endCall = () => {
@@ -124,11 +254,25 @@ export function CallProvider({ children }: { children: ReactNode }) {
             roomId: call.roomId,
             from: user._id
         });
-        setCall(initialCallState);
+        cleanupCall();
+    };
+
+    const toggleMic = () => {
+        if (call.localStream) {
+            const audioTrack = call.localStream.getAudioTracks()[0];
+            if (audioTrack) audioTrack.enabled = !audioTrack.enabled;
+        }
+    };
+
+    const toggleCamera = () => {
+        if (call.localStream) {
+            const videoTrack = call.localStream.getVideoTracks()[0];
+            if (videoTrack) videoTrack.enabled = !videoTrack.enabled;
+        }
     };
 
     return (
-        <CallContext.Provider value={{ call, startCall, answerCall, rejectCall, endCall }}>
+        <CallContext.Provider value={{ call, startCall, answerCall, rejectCall, endCall, toggleMic, toggleCamera }}>
             {children}
         </CallContext.Provider>
     );

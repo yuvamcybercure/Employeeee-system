@@ -259,12 +259,24 @@ export function ChatWindow({
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         className="flex items-center gap-3 text-slate-400 font-bold text-xs bg-white/80 py-3 px-5 rounded-[2rem] w-fit border border-emerald-100 shadow-md mb-4 ml-2 backdrop-blur-md"
                     >
-                        <div className="flex gap-1.5">
-                            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-duration:1s]" />
-                            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s] [animation-duration:1s]" />
-                            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s] [animation-duration:1s]" />
+                        <div className="flex gap-1">
+                            {[0, 1, 2].map((i) => (
+                                <motion.span
+                                    key={i}
+                                    animate={{
+                                        y: ["0%", "-50%", "0%"]
+                                    }}
+                                    transition={{
+                                        duration: 0.6,
+                                        repeat: Infinity,
+                                        ease: "easeInOut",
+                                        delay: i * 0.1
+                                    }}
+                                    className="w-1.5 h-1.5 bg-emerald-400 rounded-full"
+                                />
+                            ))}
                         </div>
-                        <span className="tracking-tight">{typingUser.userName} is typing...</span>
+                        <span className="tracking-tight">{typingUser.userName} is typing</span>
                     </motion.div>
                 )}
                 <div ref={scrollRef} className="h-4" />

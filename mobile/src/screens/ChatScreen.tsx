@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, StyleSheet, Image, ActivityIndicator, Alert
 } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, withDelay } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, radius, shadows, spacing } from '../theme';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +13,41 @@ import { useCall } from '../context/CallContext';
 import { Send, ArrowLeft, Image as ImageIcon, Paperclip, MoreVertical, Check, CheckCheck, Trash2, Smile, X, Phone, Video } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { BASE_URL } from '../api';
+
+const TypingDot = ({ delay }: { delay: number }) => {
+  const y = useSharedValue(0);
+
+  useEffect(() => {
+    y.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(-6, { duration: 400 }),
+          withTiming(0, { duration: 400 })
+        ),
+        -1,
+        true
+      )
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: y.value }],
+  }));
+
+  return <Animated.View style={[s.typingDot, animatedStyle]} />;
+};
+
+const TypingAnimation = () => (
+  <View style={s.typingContainer}>
+    <TypingDot delay={0} />
+    <TypingDot delay={150} />
+    <TypingDot delay={300} />
+  </View>
+);
 
 export default function ChatScreen({ route, navigation }: any) {
   const { conversationId, name, type } = route.params; // type: 'dm' or 'group'
@@ -32,9 +68,9 @@ export default function ChatScreen({ route, navigation }: any) {
 
     if (socket) {
       const roomId = type === 'group' ? conversationId : [user?._id, conversationId].sort().join('-');
-      socket.emit('joinConversation', roomId);
+      socket.emit('join_room', roomId);
 
-      socket.on('newMessage', (msg: any) => {
+      socket.on('receive_message', (msg: any) => {
         setMessages(prev => [msg, ...prev]);
       });
 
@@ -57,7 +93,7 @@ export default function ChatScreen({ route, navigation }: any) {
 
       return () => {
         socket.emit('leaveConversation', roomId);
-        socket.off('newMessage');
+        socket.off('receive_message');
         socket.off('user_typing');
         socket.off('user_stop_typing');
         socket.off('message_deleted');
@@ -125,10 +161,10 @@ export default function ChatScreen({ route, navigation }: any) {
       socket.emit('typing', { roomId, userId: user?._id, userName: user?.name });
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
-        socket.emit('stop_typing', { roomId, userId: user?.id });
+        socket.emit('stop_typing', { roomId, userId: user?._id });
       }, 3000);
     } else {
-      socket.emit('stop_typing', { roomId, userId: user?.id });
+      socket.emit('stop_typing', { roomId, userId: user?._id });
     }
   };
 
@@ -197,6 +233,19 @@ export default function ChatScreen({ route, navigation }: any) {
     );
   };
 
+  const downloadFile = async (url: string, name: string) => {
+    try {
+      const fs = FileSystem as any;
+      const docDir = fs.documentDirectory || fs.cacheDirectory;
+      if (!docDir) throw new Error('No storage available');
+      const fileUri = docDir + name;
+      const { uri } = await fs.downloadAsync(url, fileUri);
+      await Sharing.shareAsync(uri);
+    } catch (e) {
+      Alert.alert('Error', 'Failed to open file');
+    }
+  };
+
   const renderMessage = ({ item }: any) => {
     const isMine = item.senderId === user?._id || item.sender?._id === user?._id;
     return (
@@ -205,18 +254,21 @@ export default function ChatScreen({ route, navigation }: any) {
         onLongPress={() => showOptions(item)}
       >
         <View style={[s.msgBubble, isMine ? s.bubbleMine : s.bubbleTheirs]}>
-          {item.attachments?.map((att: any, idx: number) => (
-            <View key={idx} style={s.attachment}>
-              {att.type === 'image' ? (
-                <Image source={{ uri: att.url }} style={s.msgImage} />
-              ) : (
-                <View style={s.fileBox}>
-                  <Paperclip size={16} color={isMine ? colors.white : colors.primary} />
-                  <Text style={[s.fileName, isMine ? s.textMine : s.textTheirs]}>{att.name}</Text>
-                </View>
-              )}
-            </View>
-          ))}
+          {item.attachments?.map((att: any, idx: number) => {
+            const fullUrl = att.url.startsWith('http') ? att.url : `${BASE_URL}${att.url}`;
+            return (
+              <TouchableOpacity key={idx} style={s.attachment} onPress={() => downloadFile(fullUrl, att.name)}>
+                {att.type === 'image' ? (
+                  <Image source={{ uri: fullUrl }} style={s.msgImage} />
+                ) : (
+                  <View style={s.fileBox}>
+                    <Paperclip size={16} color={isMine ? colors.white : colors.primary} />
+                    <Text style={[s.fileName, isMine ? s.textMine : s.textTheirs]}>{att.name}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
           {item.content ? (
             <Text style={[s.msgText, isMine ? s.textMine : s.textTheirs]}>
               {item.isDeletedForEveryone ? 'This message was deleted' : item.content}
@@ -246,7 +298,14 @@ export default function ChatScreen({ route, navigation }: any) {
           <View style={s.avatar}><Text style={s.avatarText}>{name?.[0]}</Text></View>
           <View>
             <Text style={s.headerName}>{name}</Text>
-            <Text style={s.headerStatus}>{typing ? `${typing.userName} is typing...` : 'Online'}</Text>
+            {typing ? (
+              <View style={s.typingRow}>
+                <Text style={s.headerStatus}>{typing.userName} is typing</Text>
+                <TypingAnimation />
+              </View>
+            ) : (
+              <Text style={s.headerStatus}>Online</Text>
+            )}
           </View>
         </TouchableOpacity>
         <View style={s.headerActions}>
@@ -343,6 +402,9 @@ const s = StyleSheet.create({
   avatarText: { fontSize: 14, fontFamily: typography.fontFamily.black, color: colors.white },
   headerName: { fontSize: typography.size.base, fontFamily: typography.fontFamily.bold, color: colors.slate800 },
   headerStatus: { fontSize: 10, fontFamily: typography.fontFamily.medium, color: colors.success },
+  typingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  typingContainer: { flexDirection: 'row', gap: 2, alignItems: 'center' },
+  typingDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.success },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   headerActionBtn: { padding: spacing.sm },
   moreBtn: { padding: spacing.sm },

@@ -65,23 +65,61 @@ exports.getGroupMessages = async (req, res) => {
     }
 };
 
+const notificationService = require('../services/notificationService');
+
 // POST /api/messages
 exports.sendMessage = async (req, res) => {
     try {
-        const { receiverId, groupId, content, type } = req.body;
+        const { receiverId, groupId, content } = req.body;
         const orgId = req.user.organizationId?._id || req.user.organizationId;
         if (!orgId && req.user.role === 'master-admin') {
             return res.status(400).json({ message: 'Must be in an organization context to send messages' });
         }
 
-        const message = await Message.create({
+        let attachments = [];
+        if (req.files && req.files.length > 0) {
+            attachments = req.files.map(file => ({
+                url: `/public/uploads/messages/${file.filename}`,
+                name: file.originalname,
+                type: file.mimetype.startsWith('image/') ? 'image' : 'file'
+            }));
+        }
+
+        const messageData = {
             senderId: req.user._id,
             organizationId: orgId,
-            receiverId,
-            groupId,
-            content,
-            type: type || 'text'
-        });
+            receiverId: receiverId || null,
+            groupId: groupId || null,
+            content: content || '',
+            attachments,
+            type: attachments.length > 0 ? (attachments[0].type === 'image' ? 'image' : 'file') : 'text'
+        };
+
+        const message = await (await Message.create(messageData)).populate('senderId', 'name profilePhoto');
+
+        // --- Push Notification ---
+        if (receiverId) {
+            const receiver = await User.findById(receiverId);
+            if (receiver?.expoPushToken) {
+                notificationService.sendPushNotification(receiver.expoPushToken, {
+                    title: `New message from ${req.user.name}`,
+                    body: content || (attachments.length > 0 ? 'Sent an attachment' : 'New message'),
+                    data: { conversationId: req.user._id, type: 'chat' }
+                });
+            }
+        } else if (groupId) {
+            const group = await ChatGroup.findById(groupId).populate('members');
+            const otherMembers = group.members.filter(m => m._id.toString() !== req.user._id.toString());
+            const tokens = otherMembers.map(m => m.expoPushToken).filter(t => !!t);
+            if (tokens.length > 0) {
+                notificationService.sendPushNotification(tokens, {
+                    title: `${group.name}: ${req.user.name}`,
+                    body: content || (attachments.length > 0 ? 'Sent an attachment' : 'New message'),
+                    data: { conversationId: groupId, type: 'group_chat' }
+                });
+            }
+        }
+
         res.status(201).json({ success: true, message });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -121,6 +159,9 @@ exports.markAsRead = async (req, res) => {
     }
 };
 
+const fs = require('fs');
+const path = require('path');
+
 // DELETE /api/messages/:messageId
 exports.deleteMessage = async (req, res) => {
     try {
@@ -135,7 +176,19 @@ exports.deleteMessage = async (req, res) => {
             if (message.senderId.toString() !== currentUserId.toString()) {
                 return res.status(403).json({ message: 'Not authorized' });
             }
+
+            // Physically delete attachments if they exist
+            if (message.attachments && message.attachments.length > 0) {
+                message.attachments.forEach(att => {
+                    const filePath = path.join(__dirname, '..', att.url);
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
+                });
+            }
+
             message.isDeletedForEveryone = true;
+            message.attachments = [];
         } else {
             // Delete for me
             if (!message.deletedFor.includes(currentUserId)) {

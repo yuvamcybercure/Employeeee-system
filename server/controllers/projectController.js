@@ -1,21 +1,16 @@
 const Project = require('../models/Project');
+const User = require('../models/User');
+const notificationService = require('../services/notificationService');
 const { logActivity } = require('../middleware/logger');
 
 // GET /api/projects
 exports.getProjects = async (req, res) => {
     try {
         const orgId = req.user.organizationId?._id || req.user.organizationId;
-        if (!orgId && req.user.role === 'master-admin') {
-            return res.json({ success: true, projects: [] });
-        }
-        let filter = { organizationId: orgId };
-        if (req.user.role === 'employee') {
-            filter.$or = [{ managerId: req.user._id }, { teamMembers: req.user._id }];
-        }
-        const projects = await Project.find(filter)
-            .populate('managerId', 'name profilePhoto email')
-            .populate('teamMembers', 'name profilePhoto department email')
-            .sort({ updatedAt: -1 });
+        const projects = await Project.find({ organizationId: orgId })
+            .populate('managerId', 'name profilePhoto')
+            .populate('teamMembers', 'name profilePhoto')
+            .sort({ createdAt: -1 });
         res.json({ success: true, projects });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -28,10 +23,10 @@ exports.getProjectById = async (req, res) => {
         const orgId = req.user.organizationId?._id || req.user.organizationId;
         const project = await Project.findOne({ _id: req.params.id, organizationId: orgId })
             .populate('managerId', 'name profilePhoto email')
-            .populate('teamMembers', 'name profilePhoto department email')
-            .populate('tasks.assignedTo', 'name profilePhoto email')
-            .populate('tasks.createdBy', 'name email')
-            .populate('tasks.comments.userId', 'name profilePhoto email');
+            .populate('teamMembers', 'name profilePhoto email department designation')
+            .populate('tasks.assignedTo', 'name profilePhoto')
+            .populate('tasks.createdBy', 'name')
+            .populate('tasks.comments.userId', 'name profilePhoto');
         if (!project) return res.status(404).json({ message: 'Project not found' });
         res.json({ success: true, project });
     } catch (err) {
@@ -51,6 +46,20 @@ exports.createProject = async (req, res) => {
             organizationId: orgId,
             managerId: req.body.managerId || req.user._id
         });
+
+        // --- Push Notification (Team Members) ---
+        if (project.teamMembers?.length > 0) {
+            const members = await User.find({ _id: { $in: project.teamMembers } });
+            const tokens = members.map(m => m.expoPushToken).filter(t => !!t);
+            if (tokens.length > 0) {
+                notificationService.sendPushNotification(tokens, {
+                    title: 'New Project Assigned',
+                    body: `You have been added to the project: ${project.name}`,
+                    data: { projectId: project._id, type: 'project' }
+                });
+            }
+        }
+
         await logActivity(req.user._id, 'CREATE_PROJECT', 'projects', { name: project.name }, req, project._id, 'Project');
         res.status(201).json({ success: true, project });
     } catch (err) {
@@ -95,6 +104,20 @@ exports.addTask = async (req, res) => {
             { $push: { tasks: { ...req.body, createdBy: req.user._id } } },
             { new: true },
         ).populate('tasks.assignedTo tasks.createdBy');
+
+        // --- Push Notification (Assigned User) ---
+        const task = project.tasks[project.tasks.length - 1];
+        if (task && task.assignedTo) {
+            const assignedUser = await User.findById(task.assignedTo);
+            if (assignedUser?.expoPushToken) {
+                notificationService.sendPushNotification(assignedUser.expoPushToken, {
+                    title: 'New Task Assigned',
+                    body: `Task "${task.title}" assigned to you in ${project.name}`,
+                    data: { projectId: project._id, type: 'task' }
+                });
+            }
+        }
+
         res.json({ success: true, project });
     } catch (err) {
         res.status(500).json({ message: err.message });

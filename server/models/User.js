@@ -106,6 +106,7 @@ const userSchema = new mongoose.Schema({
         compensationType: { type: String, enum: ['hourly', 'monthly'], default: 'monthly' },
     },
     lastLogin: { type: Date },
+    expoPushToken: { type: String, default: null },
 }, { timestamps: true });
 
 // Hash password before save
