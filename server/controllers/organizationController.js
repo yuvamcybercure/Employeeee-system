@@ -1,6 +1,6 @@
 const Organization = require('../models/Organization');
 const { logActivity } = require('../middleware/logger');
-const { uploadBase64 } = require('../config/cloudinary');
+const { uploadBase64 } = require('../config/localStorage');
 
 // PATCH /api/organization/:id
 exports.updateOrganization = async (req, res) => {
