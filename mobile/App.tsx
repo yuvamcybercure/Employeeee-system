@@ -14,6 +14,7 @@ import {
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { SocketProvider } from './src/context/SocketContext';
 import { CallProvider } from './src/context/CallContext';
+import CallingOverlay from './src/components/CallingOverlay';
 import AuthStack from './src/navigation/AuthStack';
 import AppTabs from './src/navigation/AppTabs';
 import { colors } from './src/theme';
@@ -29,7 +30,12 @@ function RootNavigator() {
     );
   }
 
-  return user ? <AppTabs /> : <AuthStack />;
+  return (
+    <>
+      {user ? <AppTabs /> : <AuthStack />}
+      <CallingOverlay />
+    </>
+  );
 }
 
 export default function App() {

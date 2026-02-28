@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
-import CallingOverlay from '../components/CallingOverlay';
+
 
 interface CallState {
     active: boolean;
@@ -130,7 +130,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
     return (
         <CallContext.Provider value={{ call, startCall, answerCall, rejectCall, endCall }}>
             {children}
-            {call.active && <CallingOverlay />}
         </CallContext.Provider>
     );
 }

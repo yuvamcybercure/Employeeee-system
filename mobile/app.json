@@ -38,8 +38,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
-      "expo-sharing"
+      "expo-secure-store"
     ],
     "extra": {
       "apiUrl": "https://employee-api-wcak.onrender.com/api",
